@@ -38,31 +38,38 @@ struct BFSTopDown_One_Iter {
 
         vid_t dst_id = edge.dst_id();        
         degree_t currLevel = bfs().currLevel;
+        vid_t lower = bfs().lower;
+        vid_t upper = bfs().upper;
 
-        degree_t prev = atomicCAS(bfs().d_dist + dst_id, INT32_MAX, currLevel);
+        if(bfs().d_dist[dst_id]==INT32_MAX){
 
-        if (prev == INT32_MAX){
+            degree_t prev = atomicCAS(bfs().d_dist + dst_id, INT32_MAX, currLevel);
+
+            if (prev == INT32_MAX){
 
 
-            // if(threadIdx.x==0 && blockIdx.x==0){
-            //     printf("bfs().lower = %d   && bfs().upper = %d\n",bfs().lower,bfs().upper);
-            // }
+                // if(threadIdx.x==0 && blockIdx.x==0){
+                //     printf("bfs().lower = %d   && bfs().upper = %d\n",bfs().lower,bfs().upper);
+                // }
 
-            // printf("%d,",dst_id);
-            // bfs().d_Marked[dst_id ]=true;
-            if (dst_id >= bfs().lower && dst_id < bfs().upper){
+                // printf("%d,",dst_id);
+                // bfs().d_Marked[dst_id ]=true;
+                if (dst_id >= lower && dst_id < upper){
 
-                    // printf("%d ",dst_id);
-                bfs().queueLocal.insert(dst_id);
+                        // printf("%d ",dst_id);
+                    bfs().queueLocal.insert(dst_id);
+                }
+
+                bfs().queueRemote.insert(dst_id);
+
+
+                // printf("%d," ,bfs().queueRemoteSize);
+                // degree_t temp = (bfs().queueRemoteSize);
+                // degree_t pos = atomicAdd(&temp,1);
+                // bfs().queueRemote[pos] = dst_id;
+
             }
 
-            bfs().queueRemote.insert(dst_id);
-
-
-            // printf("%d," ,bfs().queueRemoteSize);
-            // degree_t temp = (bfs().queueRemoteSize);
-            // degree_t pos = atomicAdd(&temp,1);
-            // bfs().queueRemote[pos] = dst_id;
 
         }
     }
@@ -74,18 +81,24 @@ struct NeighborUpdates {
 
     OPERATOR(Vertex& dst_v){
         vid_t dst = dst_v.id();
+        degree_t currLevel = bfs().currLevel;
+
         if (bfs().d_dist[dst] == INT32_MAX){
+            degree_t prev = atomicCAS(bfs().d_dist + dst, INT32_MAX, currLevel);
 
-            bfs().d_dist[dst]=bfs().currLevel;
-            if (dst >= bfs().lower && dst <bfs().upper){
-                // printf("*");
-                bfs().queueLocal.insert(dst);
+            if(prev == INT32_MAX){
 
-        // if(bfs().currLevel==0 && bfs().gpu_id==0)                
-                // printf("%d ",dst);
+                bfs().d_dist[dst]=bfs().currLevel;
+                if (dst >= bfs().lower && dst <bfs().upper){
+                    // printf("*");
+                    bfs().queueLocal.insert(dst);
 
+            // if(bfs().currLevel==0 && bfs().gpu_id==0)                
+                    // printf("%d ",dst);
+
+                }
+                bfs().queueRemote.insert(dst);
             }
-            bfs().queueRemote.insert(dst);
         }
     }
 };

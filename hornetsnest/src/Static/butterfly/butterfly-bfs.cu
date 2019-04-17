@@ -12,13 +12,20 @@ namespace hornets_nest {
 /// TODO - changed hostKatzdata to pointer so that I can try to inherit it in
 // the streaming case.
 
-butterfly::butterfly(HornetGraph& hornet) :
+butterfly::butterfly(HornetGraph& hornet, int fanout_) :
                                        StaticAlgorithm(hornet),
                                        load_balancing(hornet)
 {
+
+    fanout=fanout_;
+    if(fanout!=4 && fanout!=1){
+        printf("Fanout has to be 1 or 4 for butterfly `BFS\n");
+        exit(0);
+    }
+
     hd_bfsData().currLevel=0;
 
-    gpu::allocate(hd_bfsData().d_buffer, hornet.nV());
+    gpu::allocate(hd_bfsData().d_buffer, fanout*hornet.nV());
     gpu::allocate(hd_bfsData().d_Marked, hornet.nV());
     gpu::allocate(hd_bfsData().d_dist, hornet.nV());
 
@@ -116,35 +123,64 @@ void butterfly::oneIterationComplete(){
 
 void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int iteration){
 
-    int but_net[4][16] = {
-                            {1,0,3,2,5,4,7,6,9,8,11,10,13,12,15,14},
-                            {2,3,0,1,6,7,4,5,10,11,8,9,14,15,12,13},
-                            {4,5,6,7,0,1,2,3,12,13,14,15,8,9,10,11},
-                            {8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7}
-    };  
+    if(fanout==1){
 
-    int my_gpu = hd_bfsData().gpu_id;
-    int copy_gpu=but_net[iteration][my_gpu];
-    hd_bfsData().h_bufferSize=bfComm[copy_gpu].queue_remote_length;
-    cudaMemcpyPeerAsync(hd_bfsData().d_buffer, my_gpu, bfComm[copy_gpu].queue_remote_ptr,copy_gpu, hd_bfsData().h_bufferSize*sizeof(vid_t));
+        int but_net[4][16] = {
+                                {1,0,3,2,5,4,7,6,9,8,11,10,13,12,15,14},
+                                {2,3,0,1,6,7,4,5,10,11,8,9,14,15,12,13},
+                                {4,5,6,7,0,1,2,3,12,13,14,15,8,9,10,11},
+                                {8,9,10,11,12,13,14,15,0,1,2,3,4,5,6,7}
+        };  
 
-   //  if(hd_bfsData().gpu_id==0){
-   //       hd_bfsData().h_bufferSize=bfComm[1].queue_remote_length;
-   //      cudaMemcpyPeer(hd_bfsData().d_buffer, 0, bfComm[1].queue_remote_ptr,1,hd_bfsData().h_bufferSize*sizeof(vid_t));
-   //  }
-   //  else{
-   //      hd_bfsData().h_bufferSize=bfComm[0].queue_remote_length;
-   //      cudaMemcpyPeer(hd_bfsData().d_buffer, 1, bfComm[0].queue_remote_ptr,0,hd_bfsData().h_bufferSize*sizeof(vid_t));
-   // }
-    // cudaDeviceSynchronize();
-    
-    if (hd_bfsData().h_bufferSize > 0){
-        forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
+        int my_gpu = hd_bfsData().gpu_id;
+        int copy_gpu=but_net[iteration][my_gpu];
+        hd_bfsData().h_bufferSize=bfComm[copy_gpu].queue_remote_length;
+        cudaMemcpyPeerAsync(hd_bfsData().d_buffer, my_gpu, bfComm[copy_gpu].queue_remote_ptr,copy_gpu, hd_bfsData().h_bufferSize*sizeof(vid_t));
+        
+        if (hd_bfsData().h_bufferSize > 0){
+            forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
+
+        }
+
+    }else if(fanout==4){
+        int but_net_first[16][4]={{0,1,2,3},{0,1,2,3},{0,1,2,3},{0,1,2,3},
+                                  {4,5,6,7},{4,5,6,7},{4,5,6,7},{4,5,6,7},
+                                  {8,9,10,11},{8,9,10,11},{8,9,10,11},{8,9,10,11},
+                                  {12,13,14,15},{12,13,14,15},{12,13,14,15},{12,13,14,15}};
+
+        int but_net_second[16][4]={{0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
+                                  {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
+                                  {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
+                                  {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15}};
+
+        int my_gpu = hd_bfsData().gpu_id;
+
+        hd_bfsData().h_bufferSize=0;
+        int pos=0;
+        for(int s=0; s<4;s++){
+            int copy_gpu;
+            if(iteration==0)
+                copy_gpu=but_net_first[my_gpu][s];
+            else
+                copy_gpu=but_net_second[my_gpu][s];
+            
+            if(my_gpu!=copy_gpu){
+                int remoteLength = bfComm[copy_gpu].queue_remote_length;                
+                cudaMemcpyPeerAsync(hd_bfsData().d_buffer+pos, my_gpu, bfComm[copy_gpu].queue_remote_ptr,copy_gpu, remoteLength*sizeof(vid_t));
+                pos+=remoteLength;
+                hd_bfsData().h_bufferSize+=remoteLength;
+
+            }
+        }
+        
+        if (hd_bfsData().h_bufferSize > 0){
+            forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
+
+        }
 
 
-        // cout << "Thread ID " << hd_bfsData().gpu_id  << "  Buffer size " << hd_bfsData().h_bufferSize << endl;
-        // cout << "Thread ID " << hd_bfsData().gpu_id  << "  Local Queue size " << hd_bfsData().queueLocal.size_sync_out() << endl;
     }
+
 
 }
 
@@ -152,28 +188,6 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
 
 void butterfly::run() {
 
-
-    // // Initialization
-    // hd_bfsData().currLevel=0;
-    // forAllnumV(hornet, InitOneTree { hd_bfsData });
-    // vid_t root = hd_bfsData().root;
-
-    // hd_bfsData().queue.insert(root);                   // insert source in the frontier
-    // gpu::memsetZero(hd_bfsData().d + root);
-
-    // // Regular BFS
-    // hd_bfsData().depth_indices[0]=1;
-
-    // while (hd_bfsData().queue.size() > 0) {
-
-    //     hd_bfsData().depth_indices[hd_bfsData().currLevel+1]=
-    //     hd_bfsData().depth_indices[hd_bfsData().currLevel]+hd_bfsData().queue.size();
-
-    //     forAllEdges(hornet, hd_bfsData().queue, BC_BFSTopDown { hd_bfsData }, load_balancing);
-    //     // hd_bfsData.sync();
-    //     hd_bfsData().currLevel++;
-    //     hd_bfsData().queue.swap();
-    // }
 
 
 }

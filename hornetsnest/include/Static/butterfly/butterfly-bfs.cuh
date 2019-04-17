@@ -39,7 +39,7 @@ struct butterfly_communication{
 
 class butterfly : public StaticAlgorithm<HornetGraph> {
 public:
-    butterfly(HornetGraph& hornet);
+    butterfly(HornetGraph& hornet,int fanout=1);
     ~butterfly();
 
     void setInitValues(vid_t root_,vid_t lower_, vid_t upper_,int64_t gpu_id);
@@ -68,7 +68,8 @@ public:
 // private:
     load_balancing::BinarySearch load_balancing;
 
-    HostDeviceVar<butterflyData>       hd_bfsData;    
+    HostDeviceVar<butterflyData>       hd_bfsData;  
+    int fanout;  
 
 };
 

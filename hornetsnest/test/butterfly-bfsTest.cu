@@ -61,7 +61,7 @@ int main(int argc, char* argv[]) {
     // int numGPUs=16; int logNumGPUs=4;
 
 
-    int numGPUs=4; int logNumGPUs=2;
+    int numGPUs=4; int logNumGPUs=2; int fanout=1;
 
 
     vid_t root = graph.max_out_degree_id();
@@ -71,6 +71,9 @@ int main(int argc, char* argv[]) {
     if (argc>=3){
         numGPUs = atoi(argv[2]);
         logNumGPUs = atoi(argv[3]);
+    }
+    if (argc>=5){
+        fanout = atoi(argv[4]);
     }
 
     // if (argc>=4)
@@ -165,12 +168,12 @@ int main(int argc, char* argv[]) {
             // printf("%ld %ld %ld %d %d\n", thread_id,my_start,my_end,edgeVal, graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start]);
 
 
-            butterfly bfs(hornet_graph);
+            butterfly bfs(hornet_graph,fanout);
             bfs.reset();
             bfs.setInitValues(root, my_start, my_end,thread_id);
             #pragma omp barrier
             if(thread_id==0){
-                cudaProfilerStart();
+                // cudaProfilerStart();
                 TM.start();                    
             }
 
@@ -198,11 +201,39 @@ int main(int argc, char* argv[]) {
 
                 #pragma omp barrier
 
-                for (int l=0; l<logNumGPUs; l++){
-                    bfs.communication(bfComm,numGPUs,l);
- 
-                    bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                    #pragma omp barrier
+
+                if(fanout==1){
+                    for (int l=0; l<logNumGPUs; l++){
+                        bfs.communication(bfComm,numGPUs,l);
+     
+                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                        #pragma omp barrier
+
+
+                    }
+                }else if (fanout==4){
+
+                    if(numGPUs==4){
+                        bfs.communication(bfComm,numGPUs,0);
+     
+                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                        #pragma omp barrier                        
+                    }
+                    else if(numGPUs==16){
+
+                        bfs.communication(bfComm,numGPUs,0);
+                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                        #pragma omp barrier                        
+     
+                        bfs.communication(bfComm,numGPUs,1);
+                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                        #pragma omp barrier                        
+
+
+                    }else{
+                        printf("Right not supporting fanout=4 for only 4 and 16 gpus\n");
+                        exit(1);
+                    }
 
 
                 }
@@ -244,7 +275,7 @@ int main(int argc, char* argv[]) {
                     if(thread_id==0){
 
                         TM.stop();
-                        cudaProfilerStop();
+                        // cudaProfilerStop();
                         TM.print("Butterfly BFS");
                         std::cout << "Number of levels is : " << front << std::endl;
 
