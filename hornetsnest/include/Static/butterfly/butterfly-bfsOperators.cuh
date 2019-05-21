@@ -1,3 +1,4 @@
+#pragma once
 
 #include "Static/butterfly/butterfly-bfs.cuh"
 
@@ -18,18 +19,101 @@ struct InitBFS {
 
 
 
-// // Used at the very beginning of every BC computation.
-// // Once per root
-// struct InitOneTree {
-//     HostDeviceVar<BCData> bcd;
 
-//     // Used at the very beginning
-//     OPERATOR(vid_t src) {
-//         bcd().d[src] = INT32_MAX;
-//         bcd().sigma[src] = 0;
-//         bcd().delta[src] = 0.0;
-//     }
-// };
+template<typename HornetDevice>
+__global__ void BFSTopDown_One_Iter_kernel(
+  HornetDevice hornet , 
+  HostDeviceVar<butterflyData> bfs, 
+  int N,
+  int start){
+    int k = threadIdx.x + blockIdx.x *blockDim.x;
+    if(k>=N)
+        return;
+    k+=start;
+
+    vid_t src = bfs().d_lrbRelabled[k];
+    degree_t currLevel = bfs().currLevel;
+    vid_t lower = bfs().lower;
+    vid_t upper = bfs().upper;
+
+    vid_t* neighPtr = hornet.vertex(src).neighbor_ptr();
+    int length = hornet.vertex(src).degree();
+
+    for (int i=0; i<length; i++) {
+       vid_t dst_id = neighPtr[i]; 
+
+
+        if(bfs().d_dist[dst_id]==INT32_MAX){
+
+            degree_t prev = atomicCAS(bfs().d_dist + dst_id, INT32_MAX, currLevel);
+
+            if (prev == INT32_MAX){
+
+                if (dst_id >= lower && dst_id < upper){
+
+                        // printf("%d ",dst_id);
+                    bfs().queueLocal.insert(dst_id);
+                }
+
+                bfs().queueRemote.insert(dst_id);
+            }
+
+
+        }
+
+
+    }
+}
+
+template<typename HornetDevice>
+__global__ void BFSTopDown_One_Iter_kernel_fat(
+  HornetDevice hornet , 
+  HostDeviceVar<butterflyData> bfs, 
+  int N){
+    int k = blockIdx.x;
+    int tid = threadIdx.x;
+    if(k>=N){
+        printf("should never happen\n");
+        return;
+    }
+
+    vid_t src = bfs().d_lrbRelabled[k];
+    degree_t currLevel = bfs().currLevel;
+    vid_t lower = bfs().lower;
+    vid_t upper = bfs().upper;
+
+    vid_t* neighPtr = hornet.vertex(src).neighbor_ptr();
+    int length = hornet.vertex(src).degree();
+
+    for (int i=tid; i<length; i+=blockDim.x) {
+       vid_t dst_id = neighPtr[i]; 
+
+
+        if(bfs().d_dist[dst_id]==INT32_MAX){
+
+            degree_t prev = atomicCAS(bfs().d_dist + dst_id, INT32_MAX, currLevel);
+
+            if (prev == INT32_MAX){
+
+                if (dst_id >= lower && dst_id < upper){
+
+                        // printf("%d ",dst_id);
+                    bfs().queueLocal.insert(dst_id);
+                }
+
+                bfs().queueRemote.insert(dst_id);
+            }
+
+
+        }
+
+
+    }
+}
+
+
+
+
 
 struct BFSTopDown_One_Iter {
     HostDeviceVar<butterflyData> bfs;

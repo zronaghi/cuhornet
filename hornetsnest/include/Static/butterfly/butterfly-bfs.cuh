@@ -25,6 +25,10 @@ struct butterflyData {
     vid_t*      d_buffer;
     vid_t       h_bufferSize;
 
+    vid_t*      d_lrbRelabled;
+    vid_t*      d_bins;
+    vid_t*      d_binsPrefix;
+
     bool*       d_Marked;
     vid_t*       d_dist;
 };
@@ -54,7 +58,7 @@ public:
 
     vid_t           localQueueSize(){return hd_bfsData().queueLocal.size_sync_in();}
 
-    void oneIterationScan(degree_t level);
+    void oneIterationScan(degree_t level,bool lrb=false);
 
     void oneIterationComplete();
     void communication(butterfly_communication* bfComm, int numGPUs,int iteration);

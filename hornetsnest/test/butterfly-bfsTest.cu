@@ -62,6 +62,7 @@ int main(int argc, char* argv[]) {
 
 
     int numGPUs=4; int logNumGPUs=2; int fanout=1;
+    bool isLrb=false;
 
 
     vid_t root = graph.max_out_degree_id();
@@ -76,6 +77,15 @@ int main(int argc, char* argv[]) {
         fanout = atoi(argv[4]);
     }
 
+    if (argc>=6){
+        int lrb = atoi(argv[5]);
+        if(lrb==0)
+            isLrb=false;
+        else 
+            isLrb=true;
+    }
+
+
     // if (argc>=4)
     //     numGPUs = atoi(argv[3]);
 
@@ -86,19 +96,28 @@ int main(int argc, char* argv[]) {
     butterfly_communication bfComm[numGPUs];
     eoff_t edgeSplits [numGPUs+1];
 
+    for(int i=0; i<10; i++){
+        root++;
+        if(root>graph.nV())
+            root=0;
+
         #pragma omp parallel
         {      
             int64_t thread_id = omp_get_thread_num ();
             // int64_t num_threads = omp_get_num_threads();
             cudaSetDevice(thread_id);
 
-            for(int64_t g=0; g<numGPUs; g++){
-                if(g!=thread_id){
-                    int isCapable;
-                    cudaDeviceCanAccessPeer(&isCapable,thread_id,g);
-                    if(isCapable==1){
-                        cudaDeviceEnablePeerAccess(g,0);
+
+            if(i==0){
+                for(int64_t g=0; g<numGPUs; g++){
+                    if(g!=thread_id){
+                        int isCapable;
+                        cudaDeviceCanAccessPeer(&isCapable,thread_id,g);
+                        if(isCapable==1){
+                            cudaDeviceEnablePeerAccess(g,0);
+                        }
                     }
+
                 }
 
             }
@@ -186,7 +205,7 @@ int main(int argc, char* argv[]) {
             degree_t countTraversed=1;
             while(true){
 
-                bfs.oneIterationScan(front);
+                bfs.oneIterationScan(front,isLrb);
                 bfComm[thread_id].queue_remote_ptr = bfs.remoteQueuePtr();
 
                 bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
@@ -295,5 +314,6 @@ int main(int argc, char* argv[]) {
 
         }
 
+    }
 
 }
