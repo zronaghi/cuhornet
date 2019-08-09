@@ -161,7 +161,7 @@ int main(int argc, char* argv[]) {
             
             if(thread_id == 0 )
                 edgeSplits[0]=0;
-/*            
+            
             HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
                                    graph.csr_out_edges());
             HornetGraph hornet_graph(hornet_init);
@@ -174,8 +174,10 @@ int main(int argc, char* argv[]) {
             my_end  = edgeSplits[thread_id+1];
 
             printf("%ld %ld %ld %d %d\n", thread_id,my_start,my_end,edgeVal, graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start]);
-*/
+            #pragma omp barrier
 
+
+/*
             #pragma omp barrier
 
             int64_t my_start,my_end,my_edges;
@@ -200,7 +202,7 @@ int main(int argc, char* argv[]) {
             for(vid_t v=(my_start); v<nV; v++){
                 localOffset[v+1] = localOffset[v-1] + (graph.csr_out_offsets()[v+1]-graph.csr_out_offsets()[v]);
             }
-
+*/
             // #pragma omp barrier  
 
 /*            #pragma omp barrier
@@ -223,9 +225,9 @@ int main(int argc, char* argv[]) {
             }*/
             // printf("finished offset modifications\n"); fflush(stdout);
 
-                HornetInit hornet_init(nV, my_edges, localOffset, edges);
-                HornetGraph hornet_graph(hornet_init);
-            #pragma omp barrier
+            //     HornetInit hornet_init(nV, my_edges, localOffset, edges);
+            //     HornetGraph hornet_graph(hornet_init);
+            // #pragma omp barrier
 
             if(1){
 
