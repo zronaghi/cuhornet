@@ -50,9 +50,15 @@ vid_t vertexBinarySearch(const eoff_t *offsets, vid_t l, vid_t r, eoff_t x)
 
 int main(int argc, char* argv[]) {
 
+    using namespace graph::structure_prop;
+    using namespace graph::parsing_prop;
+    using namespace graph;
+
     // GraphStd<vid_t, eoff_t> graph(UNDIRECTED);
     graph::GraphStd<vid_t, eoff_t> graph;
-    CommandLineParam cmd(graph, argc, argv,false);
+    graph.read(argv[1]);
+    // graph.read(argv[1], RANDOMIZE);
+    // CommandLineParam cmd(graph, argc, argv,false);
     Timer<DEVICE> TM;
 
     // int numGPUs=2; int logNumGPUs=1;
@@ -96,7 +102,7 @@ int main(int argc, char* argv[]) {
     butterfly_communication bfComm[numGPUs];
     eoff_t edgeSplits [numGPUs+1];
 
-    for(int i=0; i<10; i++){
+    for(int i=0; i<1; i++){
         root++;
         if(root>graph.nV())
             root=0;
@@ -155,24 +161,7 @@ int main(int argc, char* argv[]) {
             
             if(thread_id == 0 )
                 edgeSplits[0]=0;
-            
-
-/*
-            vid_t myNE = graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start];
-
-            eoff_t  *offsets = (eoff_t*)malloc(sizeof(eoff_t)*nV+1);
-            vid_t *edges     = (vid_t*)malloc(sizeof(vid_t)*myNE+1);
-
-            memcpy(edges,graph.csr_out_edges()+graph.csr_out_offsets()[my_start],sizeof(vid_t)*myNE);
-            memcpy(offsets,graph.csr_out_offsets(),sizeof(vid_t)*(nV+1));
-
-
-            for(vid_t v=0; v<NV;v++){
-
-            }
-
-            std::cout << " " << thread_id << " " << my_start << " " << my_end << " " << myNE << std::endl;
-*/
+/*            
             HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
                                    graph.csr_out_edges());
             HornetGraph hornet_graph(hornet_init);
@@ -184,126 +173,186 @@ int main(int argc, char* argv[]) {
             my_start = edgeSplits[thread_id];
             my_end  = edgeSplits[thread_id+1];
 
-            // printf("%ld %ld %ld %d %d\n", thread_id,my_start,my_end,edgeVal, graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start]);
+            printf("%ld %ld %ld %d %d\n", thread_id,my_start,my_end,edgeVal, graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start]);
+*/
 
-
-            butterfly bfs(hornet_graph,fanout);
-            bfs.reset();
-            bfs.setInitValues(root, my_start, my_end,thread_id);
             #pragma omp barrier
-            if(thread_id==0){
-                // cudaProfilerStart();
-                TM.start();                    
+
+            int64_t my_start,my_end,my_edges;
+
+            my_start = edgeSplits[thread_id];
+            my_end  = edgeSplits[thread_id+1];
+            my_edges = graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start];
+
+            eoff_t* localOffset = (eoff_t*)malloc(sizeof(eoff_t)*(nV+1));
+            vid_t* edges       = (vid_t*)malloc(sizeof(vid_t)*(my_edges));
+
+            memcpy(localOffset,graph.csr_out_offsets(),sizeof(eoff_t)*(nV+1));
+            memcpy(edges,graph.csr_out_edges()+graph.csr_out_offsets()[my_start],sizeof(vid_t)*(my_edges));
+            // memcpy(edges,graph.csr_out_edges(),sizeof(vid_t)*(my_edges));
+
+            printf("%ld %ld %ld %ld %d %d\n", thread_id,my_start,my_end, my_edges,graph.csr_out_offsets()[my_start],graph.csr_out_offsets()[my_end]);
+            fflush(stdout);
+
+            for(vid_t v=0; v<(nV+1); v++){
+                localOffset[v]=0;
+            }
+            for(vid_t v=(my_start); v<nV; v++){
+                localOffset[v+1] = localOffset[v-1] + (graph.csr_out_offsets()[v+1]-graph.csr_out_offsets()[v]);
             }
 
-            bfs.queueRoot();
+            // #pragma omp barrier  
 
+/*            #pragma omp barrier
+
+            for(vid_t v=0; v<my_start; v++){
+                localOffset[v]=0;
+            }
+            // printf("correctly reset local offsets\n"); fflush(stdout);
+            for(vid_t v=my_end; v<=nV; v++){
+                localOffset[v]=my_edges;
+            }
+            // printf("correctly reset local offsets\n"); fflush(stdout);
+            if(my_start>0){
+                for(vid_t v=my_start; v<my_end; v++){
+                    localOffset[v]-=graph.csr_out_offsets()[my_start];
+                    
+                    if(v<(vid_t)(my_start+10)) 
+                        printf("%d, %d , %d\n",v,localOffset[v],graph.csr_out_offsets()[v+1]-graph.csr_out_offsets()[v]);
+                }
+            }*/
+            // printf("finished offset modifications\n"); fflush(stdout);
+
+                HornetInit hornet_init(nV, my_edges, localOffset, edges);
+                HornetGraph hornet_graph(hornet_init);
             #pragma omp barrier
 
+            if(1){
 
-            int front = 1;
-            degree_t countTraversed=1;
-            while(true){
 
-                bfs.oneIterationScan(front,isLrb);
-                bfComm[thread_id].queue_remote_ptr = bfs.remoteQueuePtr();
+                butterfly bfs(hornet_graph,fanout);
+                bfs.reset();
+                bfs.setInitValues(root, my_start, my_end,thread_id);
+                #pragma omp barrier
+                if(thread_id==0){
+                    // cudaProfilerStart();
+                    TM.start();                    
+                }
 
-                bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                // if(thread_id==0){
-                //     for(int t=0; t<numGPUs;t++){
-                //         cout << bfComm[thread_id].queue_remote_length << " ";
-                //     }
-                //     cout << endl;
-                // }
-            // printf("HERE2\n");
 
+
+                bfs.queueRoot();
 
                 #pragma omp barrier
 
 
-                if(fanout==1){
-                    for (int l=0; l<logNumGPUs; l++){
-                        bfs.communication(bfComm,numGPUs,l);
-     
-                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                        #pragma omp barrier
+                int front = 1;
+                degree_t countTraversed=1;
+                while(true){
+
+                    bfs.oneIterationScan(front,isLrb);
+                    bfComm[thread_id].queue_remote_ptr = bfs.remoteQueuePtr();
+
+                    bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                    // if(thread_id==0){
+                    //     for(int t=0; t<numGPUs;t++){
+                    //         cout << bfComm[thread_id].queue_remote_length << " ";
+                    //     }
+                    //     cout << endl;
+                    // }
+                // printf("HERE2\n");
+
+
+                    #pragma omp barrier
+
+
+                    if(fanout==1){
+                        for (int l=0; l<logNumGPUs; l++){
+                            bfs.communication(bfComm,numGPUs,l);
+         
+                            bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                            #pragma omp barrier
+
+
+                        }
+                    }else if (fanout==4){
+
+                        if(numGPUs==4){
+                            bfs.communication(bfComm,numGPUs,0);
+         
+                            bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                            #pragma omp barrier                        
+                        }
+                        else{ //if(numGPUs==16){
+
+                            bfs.communication(bfComm,numGPUs,0);
+                            bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                            #pragma omp barrier                        
+         
+                            bfs.communication(bfComm,numGPUs,1);
+                            bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                            #pragma omp barrier                        
+
+
+                        }
+                        // else{
+                        //     printf("Right not supporting fanout=4 for only 4 and 16 gpus\n");
+                        //     exit(1);
+                        // }
 
 
                     }
-                }else if (fanout==4){
+                // printf("HERE1\n");
 
-                    if(numGPUs==4){
-                        bfs.communication(bfComm,numGPUs,0);
-     
-                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                        #pragma omp barrier                        
+
+        // /            #pragma omp barrier
+
+                    bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+
+                    bfs.oneIterationComplete();
+
+                    #pragma omp barrier
+
+                    bfComm[thread_id].queue_local_length = bfs.localQueueSize();
+
+                    #pragma omp barrier
+
+
+                    // if(thread_id==0){
+                    //     for(int t=0; t<numGPUs;t++){
+                    //         cout << "!!! " << t << " ";
+                    //         cout << bfComm[t].queue_local_length << " ";
+                    //         cout << bfComm[t].queue_remote_length << " ";
+                    //         cout << endl;
+                    //     }
+                    // }
+
+                    degree_t currFrontier=0;
+                    for(int t=0; t<numGPUs; t++){
+                        currFrontier+=bfComm[t].queue_local_length;
+                        countTraversed+=bfComm[t].queue_local_length;
                     }
-                    else if(numGPUs==16){
-
-                        bfs.communication(bfComm,numGPUs,0);
-                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                        #pragma omp barrier                        
-     
-                        bfs.communication(bfComm,numGPUs,1);
-                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                        #pragma omp barrier                        
 
 
-                    }else{
-                        printf("Right not supporting fanout=4 for only 4 and 16 gpus\n");
-                        exit(1);
+                    front++;
+
+                    if(currFrontier==0){
+                        if(thread_id==0){
+
+                            TM.stop();
+                            // cudaProfilerStop();
+                            TM.print("Butterfly BFS");
+                            std::cout << "Number of levels is : " << front << std::endl;
+
+                            std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
+                        }
+                            // std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
+
+                        break;
                     }
 
 
                 }
-            // printf("HERE1\n");
-
-
-    // /            #pragma omp barrier
-
-                bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-
-                bfs.oneIterationComplete();
-
-                #pragma omp barrier
-
-                bfComm[thread_id].queue_local_length = bfs.localQueueSize();
-
-                #pragma omp barrier
-
-
-                // if(thread_id==0){
-                //     for(int t=0; t<numGPUs;t++){
-                //         cout << "!!! " << t << " ";
-                //         cout << bfComm[t].queue_local_length << " ";
-                //         cout << bfComm[t].queue_remote_length << " ";
-                //         cout << endl;
-                //     }
-                // }
-
-                degree_t currFrontier=0;
-                for(int t=0; t<numGPUs; t++){
-                    currFrontier+=bfComm[t].queue_local_length;
-                    countTraversed+=bfComm[t].queue_local_length;
-                }
-
-
-                front++;
-
-                if(currFrontier==0){
-                    if(thread_id==0){
-
-                        TM.stop();
-                        // cudaProfilerStop();
-                        TM.print("Butterfly BFS");
-                        std::cout << "Number of levels is : " << front << std::endl;
-
-                        std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
-                    }
-                    break;
-                }
-
-
             }
 
             // if(offsets!=NULL)

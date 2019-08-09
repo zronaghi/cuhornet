@@ -301,6 +301,10 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
 
         int my_gpu = hd_bfsData().gpu_id;
         int copy_gpu=but_net[iteration][my_gpu];
+        if(copy_gpu>=numGPUs){
+            copy_gpu=numGPUs-1;
+        }
+
         hd_bfsData().h_bufferSize=bfComm[copy_gpu].queue_remote_length;
         cudaMemcpyPeerAsync(hd_bfsData().d_buffer, my_gpu, bfComm[copy_gpu].queue_remote_ptr,copy_gpu, hd_bfsData().h_bufferSize*sizeof(vid_t));
         
@@ -330,6 +334,11 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
                 copy_gpu=but_net_first[my_gpu][s];
             else
                 copy_gpu=but_net_second[my_gpu][s];
+
+            if(copy_gpu>=numGPUs){
+                copy_gpu=numGPUs-1;
+            }
+
             
             if(my_gpu!=copy_gpu){
                 int remoteLength = bfComm[copy_gpu].queue_remote_length;                
