@@ -52,7 +52,7 @@ template<typename T>
 constexpr T max(const T& a, const T& b) noexcept;
 
 template<typename T>
-constexpr T min(const T& a, const T& b) noexcept;
+HOST_DEVICE constexpr T min(const T& a, const T& b) noexcept;
 
 template<typename T, typename... TArgs>
 constexpr T min(const T& a, const T& b, const TArgs&... args) noexcept;

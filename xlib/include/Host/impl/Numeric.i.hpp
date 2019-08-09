@@ -86,7 +86,7 @@ void check_overflow(T value) {
 
 //------------------------------------------------------------------------------
 template<typename T>
-constexpr T min(const T& a) noexcept {
+HOST_DEVICE constexpr T min(const T& a) noexcept {
     return a;
 }
 
@@ -497,8 +497,8 @@ HOST_DEVICE
 typename std::enable_if<xlib::is_power2(BASE), int>::type
 ceil_log_aux(T value) noexcept {
     auto ret = xlib::ceil_div<xlib::Log2<BASE>::value>(xlib::ceil_log2(value));
-    assert(static_cast<T>(std::ceil(std::log2(value) / std::log2(BASE)))
-           == ret);
+    // assert(static_cast<T>(std::ceil(std::log2(value) / std::log2(BASE)))
+    //        == ret);
     return ret;
 }
 
