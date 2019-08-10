@@ -6,36 +6,38 @@
 
 namespace hornets_nest {
 
-using HornetGraph = gpu::Hornet<EMPTY, EMPTY>;
+using HornetInit  = ::hornet::HornetInit<vert_t>;
+// using HornetGraph = ::hornet::gpu::Hornet<vert_t>;
+using HornetGraph = ::hornet::gpu::HornetStatic<vert_t>;
 
 struct butterflyData {
     degree_t currLevel;
-    vid_t       root;
-    vid_t       lower;
-    vid_t       upper;
+    vert_t       root;
+    vert_t       lower;
+    vert_t       upper;
     int64_t     gpu_id;
 
 
-    TwoLevelQueue<vid_t> queueLocal;
-    TwoLevelQueue<vid_t> queueRemote;
-    // vid_t* queueRemote;
+    TwoLevelQueue<vert_t> queueLocal;
+    TwoLevelQueue<vert_t> queueRemote;
+    // vert_t* queueRemote;
     // degree_t queueRemoteSize;
 
 
-    vid_t*      d_buffer;
-    vid_t       h_bufferSize;
+    vert_t*      d_buffer;
+    vert_t       h_bufferSize;
 
-    vid_t*      d_lrbRelabled;
-    vid_t*      d_bins;
-    vid_t*      d_binsPrefix;
+    vert_t*      d_lrbRelabled;
+    vert_t*      d_bins;
+    vert_t*      d_binsPrefix;
 
     bool*       d_Marked;
-    vid_t*       d_dist;
+    vert_t*       d_dist;
 };
 
 
 struct butterfly_communication{
-    const vid_t*      queue_remote_ptr;
+    const vert_t*      queue_remote_ptr;
     degree_t          queue_remote_length;
     degree_t          queue_local_length;
 };
@@ -46,17 +48,17 @@ public:
     butterfly(HornetGraph& hornet,int fanout=1);
     ~butterfly();
 
-    void setInitValues(vid_t root_,vid_t lower_, vid_t upper_,int64_t gpu_id);
+    void setInitValues(vert_t root_,vert_t lower_, vert_t upper_,int64_t gpu_id);
     void queueRoot();
     
 
-    // vid_t* remoteQueuePtr(){return hd_bfsData().queueRemote;}
-    // vid_t remoteQueueSize(){return hd_bfsData().queueRemoteSize;}
+    // vert_t* remoteQueuePtr(){return hd_bfsData().queueRemote;}
+    // vert_t remoteQueueSize(){return hd_bfsData().queueRemoteSize;}
 
-    const vid_t*    remoteQueuePtr(){return hd_bfsData().queueRemote.device_output_ptr();}
-    vid_t           remoteQueueSize(){return hd_bfsData().queueRemote.size_sync_out();}
+    const vert_t*    remoteQueuePtr(){return hd_bfsData().queueRemote.device_output_ptr();}
+    vert_t           remoteQueueSize(){return hd_bfsData().queueRemote.size_sync_out();}
 
-    vid_t           localQueueSize(){return hd_bfsData().queueLocal.size_sync_in();}
+    vert_t           localQueueSize(){return hd_bfsData().queueLocal.size_sync_in();}
 
     void oneIterationScan(degree_t level,bool lrb=false);
 

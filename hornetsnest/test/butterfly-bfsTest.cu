@@ -26,10 +26,10 @@ using namespace hornets_nest;
 // A recursive binary search function for partitioning the vertices.
 // Vertices are NOT split amongst the cores\GPUs thus
 // we returns the vertex id with the smallest value larger than x (which is the edge partition)
-vid_t vertexBinarySearch(const eoff_t *offsets, vid_t l, vid_t r, eoff_t x) 
+vert_t vertexBinarySearch(const vert_t *offsets, vert_t l, vert_t r, vert_t x) 
 { 
     if (r >= l) { 
-        vid_t mid = l + (r - l) / 2; 
+        vert_t mid = l + (r - l) / 2; 
   
         // If the element is present at the middle itself 
         if (offsets[mid] == x) // perfect load balancing
@@ -54,8 +54,8 @@ int main(int argc, char* argv[]) {
     using namespace graph::parsing_prop;
     using namespace graph;
 
-    // GraphStd<vid_t, eoff_t> graph(UNDIRECTED);
-    graph::GraphStd<vid_t, eoff_t> graph;
+    // GraphStd<vert_t, vert_t> graph(UNDIRECTED);
+    graph::GraphStd<vert_t, vert_t> graph(UNDIRECTED);
     graph.read(argv[1]);
     // graph.read(argv[1], RANDOMIZE);
     // CommandLineParam cmd(graph, argc, argv,false);
@@ -71,7 +71,7 @@ int main(int argc, char* argv[]) {
     bool isLrb=false;
 
 
-    vid_t root = graph.max_out_degree_id();
+    vert_t root = graph.max_out_degree_id();
     // if (argc>=3)
     //     root = atoi(argv[2]);
 
@@ -130,15 +130,15 @@ int main(int argc, char* argv[]) {
 
 
 
-            vid_t nV = graph.nV();
-            eoff_t nE = graph.nE();
+            vert_t nV = graph.nV();
+            vert_t nE = graph.nE();
 
-            vid_t upperNV = nV;
+            vert_t upperNV = nV;
             if(upperNV%numGPUs){
                 upperNV = nV - (nV%numGPUs) + numGPUs;
             }
 
-            vid_t upperNE = nE;
+            vert_t upperNE = nE;
             if(upperNE%numGPUs){
                 upperNE = nE - (nE%numGPUs) + numGPUs;
             }
@@ -150,10 +150,10 @@ int main(int argc, char* argv[]) {
             //     my_end=nV;
             // }
 
-            // eoff_t edgeVal = ((thread_id) * upperNE) /num_threads ;
-            // vid_t start = binarySearch(graph.csr_out_offsets(),0, nV, edgeVal);
+            // vert_t edgeVal = ((thread_id) * upperNE) /num_threads ;
+            // vert_t start = binarySearch(graph.csr_out_offsets(),0, nV, edgeVal);
 
-            eoff_t edgeVal = ((thread_id+1) * upperNE) /numGPUs ;
+            vert_t edgeVal = ((thread_id+1) * upperNE) /numGPUs ;
             if (edgeVal>nE)
                 edgeVal = nE;
             edgeSplits[thread_id+1] = vertexBinarySearch(graph.csr_out_offsets(),0, nV+1, edgeVal);
@@ -161,7 +161,8 @@ int main(int argc, char* argv[]) {
             
             if(thread_id == 0 )
                 edgeSplits[0]=0;
-            
+           
+#if (0) 
             HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
                                    graph.csr_out_edges());
             HornetGraph hornet_graph(hornet_init);
@@ -176,8 +177,8 @@ int main(int argc, char* argv[]) {
             printf("%ld %ld %ld %d %d\n", thread_id,my_start,my_end,edgeVal, graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start]);
             #pragma omp barrier
 
+#else
 
-/*
             #pragma omp barrier
 
             int64_t my_start,my_end,my_edges;
@@ -186,54 +187,35 @@ int main(int argc, char* argv[]) {
             my_end  = edgeSplits[thread_id+1];
             my_edges = graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start];
 
-            eoff_t* localOffset = (eoff_t*)malloc(sizeof(eoff_t)*(nV+1));
-            vid_t* edges       = (vid_t*)malloc(sizeof(vid_t)*(my_edges));
+            vert_t* localOffset = (vert_t*)malloc(sizeof(vert_t)*(nV+1));
+            vert_t* edges       = (vert_t*)malloc(sizeof(vert_t)*(my_edges));
 
-            memcpy(localOffset,graph.csr_out_offsets(),sizeof(eoff_t)*(nV+1));
-            memcpy(edges,graph.csr_out_edges()+graph.csr_out_offsets()[my_start],sizeof(vid_t)*(my_edges));
-            // memcpy(edges,graph.csr_out_edges(),sizeof(vid_t)*(my_edges));
+            memcpy(localOffset,graph.csr_out_offsets(),sizeof(vert_t)*(nV+1));
+            const vert_t* tempPtr =graph.csr_out_edges()+graph.csr_out_offsets()[my_start];
+            memcpy(edges,tempPtr,sizeof(vert_t)*(my_edges));
 
             printf("%ld %ld %ld %ld %d %d\n", thread_id,my_start,my_end, my_edges,graph.csr_out_offsets()[my_start],graph.csr_out_offsets()[my_end]);
             fflush(stdout);
 
-            for(vid_t v=0; v<(nV+1); v++){
+            for(vert_t v=0; v<(nV+1); v++){
                 localOffset[v]=0;
             }
-            for(vid_t v=(my_start); v<nV; v++){
-                localOffset[v+1] = localOffset[v-1] + (graph.csr_out_offsets()[v+1]-graph.csr_out_offsets()[v]);
+            for(vert_t v=(my_start); v<nV; v++){
+                localOffset[v+1] = localOffset[v] + (graph.csr_out_offsets()[v+1]-graph.csr_out_offsets()[v]);
             }
-*/
-            // #pragma omp barrier  
 
-/*            #pragma omp barrier
+                HornetInit hornet_init(nV, my_edges, localOffset, edges);
+                HornetGraph hornet_graph(hornet_init);
 
-            for(vid_t v=0; v<my_start; v++){
-                localOffset[v]=0;
-            }
-            // printf("correctly reset local offsets\n"); fflush(stdout);
-            for(vid_t v=my_end; v<=nV; v++){
-                localOffset[v]=my_edges;
-            }
-            // printf("correctly reset local offsets\n"); fflush(stdout);
-            if(my_start>0){
-                for(vid_t v=my_start; v<my_end; v++){
-                    localOffset[v]-=graph.csr_out_offsets()[my_start];
-                    
-                    if(v<(vid_t)(my_start+10)) 
-                        printf("%d, %d , %d\n",v,localOffset[v],graph.csr_out_offsets()[v+1]-graph.csr_out_offsets()[v]);
-                }
-            }*/
-            // printf("finished offset modifications\n"); fflush(stdout);
+            #pragma omp barrier  
 
-            //     HornetInit hornet_init(nV, my_edges, localOffset, edges);
-            //     HornetGraph hornet_graph(hornet_init);
-            // #pragma omp barrier
+#endif
 
             if(1){
 
 
                 butterfly bfs(hornet_graph,fanout);
-                bfs.reset();
+                bfs.reset();    
                 bfs.setInitValues(root, my_start, my_end,thread_id);
                 #pragma omp barrier
                 if(thread_id==0){

@@ -64,9 +64,9 @@ __global__ void  binPrefixKernel(int32_t     *bins, int32_t     *d_binsPrefix){
 template<typename HornetDevice>
 __global__ void  rebinKernel(
   HornetDevice hornet ,
-  const vid_t    *original,
+  const vert_t    *original,
   int32_t    *d_binsPrefix,
-  vid_t     *d_reOrg,
+  vert_t     *d_reOrg,
   int N){
 
     int i = threadIdx.x + blockIdx.x *blockDim.x;
@@ -140,8 +140,11 @@ butterfly::butterfly(HornetGraph& hornet, int fanout_) :
     // gpu::allocate(hd_bfsData().queueRemote, hornet.nV());
     // hd_bfsData().queueRemoteSize=0;
 
-    hd_bfsData().queueLocal.initialize(hornet);
-    hd_bfsData().queueRemote.initialize(hornet);
+    // hd_bfsData().queueLocal.initialize(hornet);
+    // hd_bfsData().queueRemote.initialize(hornet);
+
+    hd_bfsData().queueLocal.initialize((size_t)hornet.nV());
+    hd_bfsData().queueRemote.initialize((size_t)hornet.nV());
 
 
     reset();
@@ -151,7 +154,7 @@ butterfly::~butterfly() {
     release();
 }
 
-void butterfly::setInitValues(vid_t root_ ,vid_t lower_, vid_t upper_,int64_t gpu_id_)
+void butterfly::setInitValues(vert_t root_ ,vert_t lower_, vert_t upper_,int64_t gpu_id_)
 {
     // if(gpu_id_==0)
     //     std::cout << " " << gpu_id_ << " " << lower_ << " " <<  upper_ << " " <<  root_ << std::endl;
@@ -236,7 +239,7 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
             int rebinblocks = (elements)/RB_BLOCK_SIZE + (((elements)%RB_BLOCK_SIZE)?1:0);
 
             if(rebinblocks){
-              rebinKernel<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device_side(),hd_bfsData().queueLocal.device_input_ptr(),
+              rebinKernel<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device(),hd_bfsData().queueLocal.device_input_ptr(),
                 hd_bfsData().d_binsPrefix, hd_bfsData().d_lrbRelabled,elements);
             }
 
@@ -255,13 +258,13 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
             rebinblocks = (h_binsPrefix[bi]);
             if(rebinblocks>0){
                 // printf("fat is running %d \n",h_binsPrefix[bi]);
-                BFSTopDown_One_Iter_kernel_fat<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device_side(),hd_bfsData,h_binsPrefix[bi]);            }
+                BFSTopDown_One_Iter_kernel_fat<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device(),hd_bfsData,h_binsPrefix[bi]);            }
 
 
 
             rebinblocks = (elements-h_binsPrefix[bi])/RB_BLOCK_SIZE + (((elements-h_binsPrefix[bi])%RB_BLOCK_SIZE)?1:0);
             if(rebinblocks>0)
-                BFSTopDown_One_Iter_kernel<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device_side(),
+                BFSTopDown_One_Iter_kernel<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device(),
                     hd_bfsData,elements-h_binsPrefix[bi],h_binsPrefix[bi]);
 
 
@@ -306,7 +309,7 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
         }
 
         hd_bfsData().h_bufferSize=bfComm[copy_gpu].queue_remote_length;
-        cudaMemcpyPeerAsync(hd_bfsData().d_buffer, my_gpu, bfComm[copy_gpu].queue_remote_ptr,copy_gpu, hd_bfsData().h_bufferSize*sizeof(vid_t));
+        cudaMemcpyPeerAsync(hd_bfsData().d_buffer, my_gpu, bfComm[copy_gpu].queue_remote_ptr,copy_gpu, hd_bfsData().h_bufferSize*sizeof(vert_t));
         
         if (hd_bfsData().h_bufferSize > 0){
             forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
@@ -342,7 +345,7 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
             
             if(my_gpu!=copy_gpu){
                 int remoteLength = bfComm[copy_gpu].queue_remote_length;                
-                cudaMemcpyPeerAsync(hd_bfsData().d_buffer+pos, my_gpu, bfComm[copy_gpu].queue_remote_ptr,copy_gpu, remoteLength*sizeof(vid_t));
+                cudaMemcpyPeerAsync(hd_bfsData().d_buffer+pos, my_gpu, bfComm[copy_gpu].queue_remote_ptr,copy_gpu, remoteLength*sizeof(vert_t));
                 pos+=remoteLength;
                 hd_bfsData().h_bufferSize+=remoteLength;
 

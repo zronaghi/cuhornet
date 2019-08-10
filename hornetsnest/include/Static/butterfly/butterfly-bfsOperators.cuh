@@ -11,7 +11,7 @@ struct InitBFS {
     HostDeviceVar<butterflyData> bfs;
 
 
-    OPERATOR(vid_t src) {
+    OPERATOR(vert_t src) {
         bfs().d_Marked[src] = false;
         bfs().d_dist[src] = INT32_MAX;
     }
@@ -31,16 +31,16 @@ __global__ void BFSTopDown_One_Iter_kernel(
         return;
     k+=start;
 
-    vid_t src = bfs().d_lrbRelabled[k];
+    vert_t src = bfs().d_lrbRelabled[k];
     degree_t currLevel = bfs().currLevel;
-    vid_t lower = bfs().lower;
-    vid_t upper = bfs().upper;
+    vert_t lower = bfs().lower;
+    vert_t upper = bfs().upper;
 
-    vid_t* neighPtr = hornet.vertex(src).neighbor_ptr();
+    vert_t* neighPtr = hornet.vertex(src).neighbor_ptr();
     int length = hornet.vertex(src).degree();
 
     for (int i=0; i<length; i++) {
-       vid_t dst_id = neighPtr[i]; 
+       vert_t dst_id = neighPtr[i]; 
 
 
         if(bfs().d_dist[dst_id]==INT32_MAX){
@@ -77,16 +77,16 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
         return;
     }
 
-    vid_t src = bfs().d_lrbRelabled[k];
+    vert_t src = bfs().d_lrbRelabled[k];
     degree_t currLevel = bfs().currLevel;
-    vid_t lower = bfs().lower;
-    vid_t upper = bfs().upper;
+    vert_t lower = bfs().lower;
+    vert_t upper = bfs().upper;
 
-    vid_t* neighPtr = hornet.vertex(src).neighbor_ptr();
+    vert_t* neighPtr = hornet.vertex(src).neighbor_ptr();
     int length = hornet.vertex(src).degree();
 
     for (int i=tid; i<length; i+=blockDim.x) {
-       vid_t dst_id = neighPtr[i]; 
+       vert_t dst_id = neighPtr[i]; 
 
 
         if(bfs().d_dist[dst_id]==INT32_MAX){
@@ -120,10 +120,10 @@ struct BFSTopDown_One_Iter {
 
     OPERATOR(Vertex& src, Edge& edge){
 
-        vid_t dst_id = edge.dst_id();        
+        vert_t dst_id = edge.dst_id();        
         degree_t currLevel = bfs().currLevel;
-        vid_t lower = bfs().lower;
-        vid_t upper = bfs().upper;
+        vert_t lower = bfs().lower;
+        vert_t upper = bfs().upper;
 
         if(bfs().d_dist[dst_id]==INT32_MAX){
 
@@ -164,7 +164,7 @@ struct NeighborUpdates {
     HostDeviceVar<butterflyData> bfs;
 
     OPERATOR(Vertex& dst_v){
-        vid_t dst = dst_v.id();
+        vert_t dst = dst_v.id();
         degree_t currLevel = bfs().currLevel;
 
         if (bfs().d_dist[dst] == INT32_MAX){
