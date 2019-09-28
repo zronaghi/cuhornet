@@ -70,3 +70,5 @@ target_link_libraries(kcore         hornetAlg)
 #target_link_libraries(clus-coeff    hornetAlg)
 target_link_libraries(pr            hornetAlg)
 target_link_libraries(butterfly		hornetAlg)
+target_link_libraries(butterfly		OpenMP::OpenMP_CXX)
+
