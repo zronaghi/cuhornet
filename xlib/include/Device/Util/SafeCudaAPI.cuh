@@ -71,8 +71,7 @@
 #if !defined(NO_CHECK_CUDA_ERROR)
     #define CHECK_CUDA_ERROR                                                   \
         {                                                                      \
-            cudaDeviceSynchronize();                                           \
-            xlib::detail::getLastCudaError(__FILE__, __LINE__, __func__);      \
+		  /*cudaStreamSynchronize(0);*/											   \
         }
 #else
     #define CHECK_CUDA_ERROR
