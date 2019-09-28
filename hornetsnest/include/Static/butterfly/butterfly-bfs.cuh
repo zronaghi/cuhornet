@@ -26,6 +26,8 @@ struct butterflyData {
 
     vert_t*      d_buffer;
     vert_t       h_bufferSize;
+    vert_t*      d_bufferSorted;
+
 
     vert_t*      d_lrbRelabled;
     vert_t*      d_bins;
@@ -76,6 +78,10 @@ public:
 
     HostDeviceVar<butterflyData>       hd_bfsData;  
     int fanout;  
+    cudaStream_t streams[9];
+    cudaEvent_t syncer;    
+
+    unsigned char* cubBuffer;
 
 };
 

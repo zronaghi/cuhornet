@@ -69,13 +69,15 @@ template<typename HornetDevice>
 __global__ void BFSTopDown_One_Iter_kernel_fat(
   HornetDevice hornet , 
   HostDeviceVar<butterflyData> bfs, 
-  int N){
+  int N,
+  int start){
     int k = blockIdx.x;
     int tid = threadIdx.x;
     if(k>=N){
         printf("should never happen\n");
         return;
     }
+    k+=start;    
 
     vert_t src = bfs().d_lrbRelabled[k];
     degree_t currLevel = bfs().currLevel;
@@ -91,7 +93,8 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
 
         if(bfs().d_dist[dst_id]==INT32_MAX){
 
-            degree_t prev = atomicCAS(bfs().d_dist + dst_id, INT32_MAX, currLevel);
+            // degree_t prev = atomicCAS(bfs().d_dist + dst_id, INT32_MAX, currLevel);
+            degree_t prev = atomicMin(bfs().d_dist + dst_id, currLevel);
 
             if (prev == INT32_MAX){
 
@@ -111,6 +114,42 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
     }
 }
 
+
+template<typename HornetDevice>
+__global__ void NeighborUpdates_QueueingKernel(
+  HornetDevice hornet , 
+  HostDeviceVar<butterflyData> bfs, 
+  int N,
+  degree_t currLevel,
+  vert_t lower,
+  vert_t upper){
+    int k = threadIdx.x + blockIdx.x *blockDim.x;
+    if(k>=N)
+        return;
+
+
+    vert_t dst = bfs().d_buffer[k];
+    // degree_t currLevel = bfs().currLevel;
+    // vert_t lower = bfs().lower;
+    // vert_t upper = bfs().upper;
+
+    if (k>0){
+        vert_t dstPrev = bfs().d_buffer[k-1];
+        if(dstPrev==dst)
+            return;
+    }
+
+
+    degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
+
+    if(prev == INT32_MAX){
+        bfs().queueRemote.insert(dst);
+
+        if (dst >= bfs().lower && dst <bfs().upper){
+            bfs().queueLocal.insert(dst);
+        }
+    }
+}
 
 
 
@@ -167,12 +206,14 @@ struct NeighborUpdates {
         vert_t dst = dst_v.id();
         degree_t currLevel = bfs().currLevel;
 
-        if (bfs().d_dist[dst] == INT32_MAX){
-            degree_t prev = atomicCAS(bfs().d_dist + dst, INT32_MAX, currLevel);
+        // if (bfs().d_dist[dst] == INT32_MAX){
+            // degree_t prev = atomicCAS(bfs().d_dist + dst, INT32_MAX, currLevel);
+            degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
 
             if(prev == INT32_MAX){
+                bfs().queueRemote.insert(dst);
 
-                bfs().d_dist[dst]=bfs().currLevel;
+                // bfs().d_dist[dst]=bfs().currLevel;
                 if (dst >= bfs().lower && dst <bfs().upper){
                     // printf("*");
                     bfs().queueLocal.insert(dst);
@@ -181,9 +222,8 @@ struct NeighborUpdates {
                     // printf("%d ",dst);
 
                 }
-                bfs().queueRemote.insert(dst);
             }
-        }
+        // }
     }
 };
 
