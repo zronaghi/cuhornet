@@ -135,7 +135,7 @@ void GraphBase<vid_t, eoff_t>::read(const char* filename,               //NOLINT
     _graph_name = xlib::extract_filename(filename);
     _prop       = prop;
 
-    if (prop.is_print()) {
+    if (0 && prop.is_print()) {
         std::cout << "\nGraph File: " << std::setw(12) << std::left
                   << _graph_name << "       Size: " << std::setw(12)
                   << xlib::format(size / xlib::MB) + " MB"
@@ -166,9 +166,10 @@ void GraphBase<vid_t, eoff_t>::read(const char* filename,               //NOLINT
     fin.seekg(std::ios::beg);
 
     if (file_ext == ".mtx" && first_str == "%%MatrixMarket") {
-        if (prop.is_print())
+        if (0 && prop.is_print())
             std::cout << "(Market)\n";
-        readMarket(fin, prop.is_print());
+        // readMarket(fin, prop.is_print());
+        readMarket(fin, false);
     }
     else if (file_ext == ".mm") {
         if (prop.is_print())
@@ -188,7 +189,8 @@ void GraphBase<vid_t, eoff_t>::read(const char* filename,               //NOLINT
     else if (file_ext == ".txt" && first_str == "#") {
         if (prop.is_print())
             std::cout << "(SNAP)\n";
-        readSnap(fin, prop.is_print());
+        // readSnap(fin, prop.is_print());
+        readSnap(fin, false);
     }
     else if (file_ext == ".edges") {
         if (prop.is_print())
