@@ -98,7 +98,7 @@ int exec(int argc, char* argv[]) {
                            graph.csr_out_edges());
 
     HornetGraph hornet_graph(hornet_init);
-    SpGEMM sp(hornet_graph);
+    SpGEMM<HornetGraph> sp(hornet_graph, hornet_graph);
     sp.init();
     
     int work_factor;
@@ -118,8 +118,8 @@ int exec(int argc, char* argv[]) {
     //cudaProfilerStop();
     TM.print("Computation time:");
 
-    triangle_t deviceTriangleCount = sp.countTriangles();
-    printf("Device triangles: %llu\n", deviceTriangleCount);
+    //triangle_t deviceTriangleCount = sp.countTriangles();
+    //printf("Device triangles: %llu\n", deviceTriangleCount);
   
     /*
     int64_t hostTriCount = 0;

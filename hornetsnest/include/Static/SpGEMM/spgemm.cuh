@@ -15,24 +15,30 @@ using HornetInit  = ::hornet::HornetInit<vid_t>;
 
 //==============================================================================
 
-class SpGEMM : public StaticAlgorithm<HornetGraph> {
+template<typename HornetClass>
+//class SpGEMM : public StaticAlgorithm<HornetGraph> {
+class SpGEMM {
 public:
-    SpGEMM(HornetGraph& hornet);
+    SpGEMM(HornetClass& hornetA, HornetClass& hornetB);
     ~SpGEMM();
 
-    void reset()    override;
-    void run()      override;
-    void release()  override;
-    bool validate() override { return true; }
+    void reset();
+    void run();
+    void release();
+    bool validate(){ return true; }
 
     void run(const int WORK_FACTOR);
     void init();
-    void copyTCToHost(triangle_t* h_tcs);
+    // void copyTCToHost(triangle_t* h_tcs);
 
-    triangle_t countTriangles();
+    // triangle_t countTriangles();
 
 protected:
    triangle_t* triPerVertex { nullptr };
+
+private:
+    HornetClass& hornetA;
+    HornetClass& hornetB;
 
 };
 
