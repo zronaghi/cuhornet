@@ -17,7 +17,7 @@
 #include <Util/CommandLineParam.hpp>
 #include <cuda_profiler_api.h> //--profile-from-start off
 
-//#include "Static/SpGEMM/spgemm-Operators.cuh"
+#include "Static/SpGEMM/spgemm-Operators.cuh"
 #include "Static/SpGEMM/spgemm.cuh"
 
 using namespace timer;
