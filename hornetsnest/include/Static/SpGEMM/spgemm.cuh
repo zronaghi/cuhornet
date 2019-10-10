@@ -15,11 +15,11 @@ using HornetInit  = ::hornet::HornetInit<vid_t>;
 
 //==============================================================================
 
-template<typename HornetClass>
-//class SpGEMM : public StaticAlgorithm<HornetGraph> {
+// template<typename HornetGraph>
+ //class SpGEMM : public StaticAlgorithm<HornetGraph> {
 class SpGEMM {
 public:
-    SpGEMM(HornetClass& hornetA, HornetClass& hornetB);
+    SpGEMM(HornetGraph& hornetA, HornetGraph& hornetB);
     ~SpGEMM();
 
     void reset();
@@ -37,8 +37,8 @@ protected:
    triangle_t* triPerVertex { nullptr };
 
 private:
-    HornetClass& hornetA;
-    HornetClass& hornetB;
+    HornetGraph& hornetA;
+    HornetGraph& hornetB;
 
 };
 

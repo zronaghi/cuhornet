@@ -2,6 +2,8 @@
 #include <Operator++.cuh>
 #include <StandardAPI.hpp>
 
+#include "Static/SpGEMM/spgemm.cuh"
+
 namespace hornets_nest {
 //namespace detail {
 
@@ -278,10 +280,10 @@ namespace hornets_nest {
 // }
 
 
-template<typename HornetClass>
-void SpGEMMfunc(HornetClass&    hornetA,
-        HornetClass&    hornetB,
-        HornetClass&    hornetC)
+//template<typename HornetGraph>
+void SpGEMMfunc(HornetGraph&    hornetA,
+        HornetGraph&    hornetB,
+        HornetGraph&    hornetC)
 {
     // using namespace adj_unions;
     // using BinEdges = bin_edges<typename HornetClass::VertexType>;

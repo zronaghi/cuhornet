@@ -17,14 +17,14 @@
 #include <Util/CommandLineParam.hpp>
 #include <cuda_profiler_api.h> //--profile-from-start off
 
-#include "Static/SpGEMM/spgemm-Operators.cuh"
 #include "Static/SpGEMM/spgemm.cuh"
+#include "Static/SpGEMM/spgemm-Operators.cuh"
 
 using namespace timer;
 using namespace hornets_nest;
 
 
-using HornetGraph = ::hornet::gpu::Hornet<vid_t>;
+//using HornetGraph = ::hornet::gpu::Hornet<vid_t>;
 
 
 // CPU Version - assume sorted index lists. 
@@ -77,7 +77,6 @@ void hosspountTriangles (const vid_t nv, const vid_t ne, const eoff_t * off,
     //printf("Sequential number of triangles %ld\n",sum);
 }
 
-
 int exec(int argc, char* argv[]) {
     int deviceCount = 0;
     cudaGetDeviceCount(&deviceCount);      
@@ -98,7 +97,7 @@ int exec(int argc, char* argv[]) {
                            graph.csr_out_edges());
 
     HornetGraph hornet_graph(hornet_init);
-    SpGEMM<HornetGraph> sp(hornet_graph, hornet_graph);
+    SpGEMM sp(hornet_graph, hornet_graph);
     sp.init();
     
     int work_factor;

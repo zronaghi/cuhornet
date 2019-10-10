@@ -21,11 +21,13 @@ New Orleans, Louisiana, 2014
 #include "Static/SpGEMM/spgemm-Operators.cuh"
 
 namespace hornets_nest {
-    template<typename HornetClass>
-    SpGEMM<HornetClass>::SpGEMM(HornetClass& hornetA, HornetClass& hornetB):hornetA(hornetA) ,hornetB(hornetB) {}
+    // template<typename HornetGraph>
+    // SpGEMM<HornetGraph>::SpGEMM(HornetGraph& hornetA, HornetGraph& hornetB):hornetA(hornetA) ,hornetB(hornetB) {}
+    SpGEMM::SpGEMM(HornetGraph& hornetA, HornetGraph& hornetB):hornetA(hornetA) ,hornetB(hornetB) {}
     
-    template<typename HornetClass>
-    SpGEMM<HornetClass>::~SpGEMM(){}
+    // template<typename HornetGraph>
+    // SpGEMM<HornetGraph>::~SpGEMM(){}
+    SpGEMM::~SpGEMM(){}
 // struct OPERATOR_InitTriangleCounts {
 //     triangle_t *d_triPerVertex;
 
@@ -138,33 +140,38 @@ namespace hornets_nest {
 //     return sum;
 // }
 
-template<typename HornetClass>
-void SpGEMM<HornetClass>::reset(){
+// template<typename HornetGraph>
+//void SpGEMM<HornetGraph>::reset(){
+void SpGEMM::reset(){
     //printf("Inside reset()\n");
     //forAllVertices(hornet, OPERATOR_InitTriangleCounts { triPerVertex });
 }
 
-template<typename HornetClass>
-void SpGEMM<HornetClass>::run() {
+// template<typename HornetGraph>
+//void SpGEMM<HornetGraph>::run() {
+void SpGEMM::run() {
     //printf("Inside run()\n");
     SpGEMMfunc(hornetA, hornetB, hornetA);
     //forAllAdjUnions(hornet, OPERATOR_AdjIntersectionCount { triPerVertex });
 }
 
-template<typename HornetClass>
-void SpGEMM<HornetClass>::run(const int WORK_FACTOR=1){
+// template<typename HornetGraph>
+//void SpGEMM<HornetGraph>::run(const int WORK_FACTOR=1){
+void SpGEMM::run(const int WORK_FACTOR=1){
     //forAllAdjUnions(hornet, OPERATOR_AdjIntersectionCountBalanced { triPerVertex }, WORK_FACTOR);
 }
 
-template<typename HornetClass>
-void SpGEMM<HornetClass>::release(){
+// template<typename HornetGraph>
+// void SpGEMM<HornetGraph>::release(){
+void SpGEMM::release(){
     //printf("Inside release\n");
     gpu::free(triPerVertex);
     triPerVertex = nullptr;
 }
 
-template<typename HornetClass>
-void SpGEMM<HornetClass>::init(){
+// template<typename HornetGraph>
+//void SpGEMM<HornetGraph>::init(){
+void SpGEMM::init(){
     //printf("Inside init. Printing hornet.nV(): %d\n", hornet.nV());
     //gpu::allocate(triPerVertex, hornet.nV());
     reset();
