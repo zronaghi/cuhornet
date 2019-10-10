@@ -281,10 +281,10 @@ namespace hornets_nest {
 
 
 //template<typename HornetGraph>
-void SpGEMMfunc(HornetGraph&    hornetA,
-        HornetGraph&    hornetB,
-        HornetGraph&    hornetC)
-{
+// void SpGEMMfunc(HornetGraph&    hornetA,
+//         HornetGraph&    hornetB,
+//         HornetGraph&    hornetC)
+// {
     // using namespace adj_unions;
     // using BinEdges = bin_edges<typename HornetClass::VertexType>;
     // HostDeviceVar<queue_info<typename HornetClass::VertexType>> hd_queue_info;
@@ -377,7 +377,7 @@ void SpGEMMfunc(HornetGraph&    hornetA,
 
     // free(queue_sizes);
     // free(queue_pos);
-}
+// }
 
 
 // template<typename HornetClass, typename Operator>

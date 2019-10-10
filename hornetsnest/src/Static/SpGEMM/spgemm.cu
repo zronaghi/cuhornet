@@ -140,6 +140,11 @@ namespace hornets_nest {
 //     return sum;
 // }
 
+void SpGEMMfunc(HornetGraph&    hornetA,
+        HornetGraph&    hornetB,
+        HornetGraph&    hornetC)
+{
+}
 // template<typename HornetGraph>
 //void SpGEMM<HornetGraph>::reset(){
 void SpGEMM::reset(){
