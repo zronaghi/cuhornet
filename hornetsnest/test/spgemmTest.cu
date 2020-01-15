@@ -25,8 +25,6 @@ using namespace hornets_nest;
 
 
 //using HornetGraph = ::hornet::gpu::Hornet<vid_t>;
-
-
 // CPU Version - assume sorted index lists. 
 int hostSingleIntersection (const vid_t ai, const degree_t alen, const vid_t * a,
                             const vid_t bi, const degree_t blen, const vid_t * b){
@@ -56,7 +54,7 @@ int hostSingleIntersection (const vid_t ai, const degree_t alen, const vid_t * a
     return out;
 }
 
-void hosspountTriangles (const vid_t nv, const vid_t ne, const eoff_t * off,
+void hostCountTriangles (const vid_t nv, const vid_t ne, const eoff_t * off,
     const vid_t * ind, int64_t* allTriangles)
 {
     //int32_t edge=0;
@@ -92,12 +90,20 @@ int exec(int argc, char* argv[]) {
     using namespace graph::parsing_prop;
 
     graph::GraphStd<vid_t, eoff_t> graph(UNDIRECTED);
+    graph::GraphStd<vid_t, eoff_t> graph2(UNDIRECTED);
     graph.read(argv[1], DIRECTED_BY_DEGREE | PRINT_INFO | SORT);
-    HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
+    graph2.read(argv[2], DIRECTED_BY_DEGREE | PRINT_INFO | SORT);
+    HornetInit hornet_init(graph.nV(), graph.nE(),
+                           graph.csr_out_offsets(),
                            graph.csr_out_edges());
+    HornetInit hornet_init_inverse(graph.nV(), graph.nE(),
+                                   graph.csr_out_offsets(),
+                                   graph.csr_out_edges());
 
+    HornetGraph hornet_graph_inv(hornet_init_inverse);
     HornetGraph hornet_graph(hornet_init);
-    SpGEMM sp(hornet_graph, hornet_graph);
+
+    SpGEMM sp(hornet_graph, hornet_graph_inv, hornet_graph);
     sp.init();
     
     int work_factor;

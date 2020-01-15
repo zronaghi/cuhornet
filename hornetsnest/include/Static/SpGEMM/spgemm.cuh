@@ -16,10 +16,10 @@ using HornetInit  = ::hornet::HornetInit<vid_t>;
 //==============================================================================
 
 // template<typename HornetGraph>
- //class SpGEMM : public StaticAlgorithm<HornetGraph> {
+//class SpGEMM : public StaticAlgorithm<HornetGraph> {
 class SpGEMM {
 public:
-    SpGEMM(HornetGraph& hornetA, HornetGraph& hornetB);
+    SpGEMM(HornetGraph& hornetA, HornetGraph& hornetB, HornetGraph& hornetC);
     ~SpGEMM();
 
     void reset();
@@ -29,6 +29,10 @@ public:
 
     void run(const int WORK_FACTOR);
     void init();
+    
+    vid_t rowc;
+    vid_t colc;
+    vid2_t* vertex_pairs;
     // void copyTCToHost(triangle_t* h_tcs);
 
     // triangle_t countTriangles();
@@ -39,6 +43,7 @@ protected:
 private:
     HornetGraph& hornetA;
     HornetGraph& hornetB;
+    HornetGraph& hornetC;
 
 };
 
