@@ -190,21 +190,22 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
         unsigned int log_u = std::min(32-__clz(u_len), 31);
         int binary_work_est = u_len*log_v;
         int intersect_work_est = u_len + v_len + log_u;
-        int METHOD = ((WORK_FACTOR*intersect_work_est >= binary_work_est)); 
-        if (!METHOD && u_len <= 1) {
-            bin_index = (METHOD*MAX_ADJ_UNIONS_BINS/2);
-        } else if (!METHOD) {
-            bin_index = (METHOD*MAX_ADJ_UNIONS_BINS/2)+(log_v*BINS_1D_DIM+log_u);
+        int METHOD = ((WORK_FACTOR*intersect_work_est >= binary_work_est));
+        //// METHOD == 0 is binary search, METHOD == 1 intersection 
+        if ( METHOD == 0 && u_len <= 1) {
+            bin_index = 0;
+        } else if (METHOD == 0) {
+            bin_index = (log_v*BINS_1D_DIM+log_u);
         } else {
-            bin_index = (METHOD*MAX_ADJ_UNIONS_BINS/2)+(log_u*BINS_1D_DIM+log_v); 
+            bin_index = (MAX_ADJ_UNIONS_BINS/2)+(log_u*BINS_1D_DIM+log_v); 
         }
         // Either count or add the item to the appropriate queue position
         if (countOnly)
-            atomicAdd(&(d_queue_info.ptr()->d_queue_sizes[bin_index]), 1ULL);
+            atomicAdd(&(d_queue_info.d_queue_sizes[bin_index]), 1ULL);
         else {
-            unsigned long long id = atomicAdd(&(d_queue_info.ptr()->d_queue_pos[bin_index]), 1ULL);
-            d_queue_info.ptr()->d_edge_queue[id*2] = row_len.id();
-            d_queue_info.ptr()->d_edge_queue[id*2+1] = col_len.id();
+            unsigned long long id = atomicAdd(&(d_queue_info.d_queue_pos[bin_index]), 1ULL);
+            d_queue_info.d_edge_queue[id*2] = row;
+            d_queue_info.d_edge_queue[id*2+1] = col;
     }
 }
 
