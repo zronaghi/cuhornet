@@ -89,16 +89,27 @@ int exec(int argc, char* argv[]) {
     using namespace graph::structure_prop;
     using namespace graph::parsing_prop;
 
-    graph::GraphStd<vid_t, eoff_t> graph(UNDIRECTED);
-    graph::GraphStd<vid_t, eoff_t> graph2(UNDIRECTED);
-    graph.read(argv[1], DIRECTED_BY_DEGREE | PRINT_INFO | SORT);
-    graph2.read(argv[2], DIRECTED_BY_DEGREE | PRINT_INFO | SORT);
-    HornetInit hornet_init(graph.nV(), graph.nE(),
-                           graph.csr_out_offsets(),
+    graph::GraphStd<vid_t, eoff_t> graph(DIRECTED | ENABLE_INGOING);
+    CommandLineParam cmd(graph, argc, argv,false);
+
+    HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
                            graph.csr_out_edges());
+
+
     HornetInit hornet_init_inverse(graph.nV(), graph.nE(),
-                                   graph.csr_out_offsets(),
-                                   graph.csr_out_edges());
+                                   graph.csr_in_offsets(),
+                                   graph.csr_in_edges());
+
+    // graph::GraphStd<vid_t, eoff_t> graph(UNDIRECTED);
+    // graph::GraphStd<vid_t, eoff_t> graph2(UNDIRECTED);
+    // graph.read(argv[1], DIRECTED_BY_DEGREE | PRINT_INFO | SORT);
+    // graph2.read(argv[2], DIRECTED_BY_DEGREE | PRINT_INFO | SORT);
+    // HornetInit hornet_init(graph.nV(), graph.nE(),
+    //                        graph.csr_out_offsets(),
+    //                        graph.csr_out_edges());
+    // HornetInit hornet_init_inverse(graph.nV(), graph.nE(),
+    //                                graph.csr_out_offsets(),
+    //                                graph.csr_out_edges());
 
     HornetGraph hornet_graph_inv(hornet_init_inverse);
     HornetGraph hornet_graph(hornet_init);
@@ -106,18 +117,18 @@ int exec(int argc, char* argv[]) {
     SpGEMM sp(hornet_graph, hornet_graph_inv, hornet_graph);
     sp.init();
     
-    int work_factor;
-    if (argc > 2) {
-        work_factor = atoi(argv[2]);
-    } else {
-        work_factor = 1;
-    }
+    // int work_factor;
+    // if (argc > 2) {
+    //     work_factor = atoi(argv[2]);
+    // } else {
+    //     work_factor = 1;
+    // }
 
     Timer<DEVICE> TM(5);
     //cudaProfilerStart();
     TM.start();
 
-    sp.run(work_factor);
+    sp.run();
 
     TM.stop();
     //cudaProfilerStop();
