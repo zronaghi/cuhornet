@@ -160,7 +160,7 @@ void ReverseDeleteBFS::run() {
 void ReverseDeleteBFS::run(HornetGraph& hornet_inv) {
 
     Timer<DEVICE> TM;
-    cudaProfilerStart();
+    // cudaProfilerStart();
     TM.start();
 
     int level=1;
@@ -168,63 +168,59 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv) {
     int total_counter = 0;
     while (queue.size() > 0) {
 
-        TM.start();
+        // TM.start();
         gpu::memsetZero(d_batchSize);  //reset source distance
 
         forAllEdges(hornet_inv, queue,
             createBatch { d_found, d_src, d_dest, d_batchSize},load_balancing);
-        TM.stop();
-        traversal += TM.duration();
+        // TM.stop();
+        // traversal += TM.duration();
         // TM.print("Batch creation");
-        TM.start();
+
+        // TM.start();
 
         batch_t h_counter;
         cudaMemcpy(&h_counter,d_batchSize, sizeof(batch_t),cudaMemcpyDeviceToHost);
-        printf("h_counter = %d\n", h_counter);total_counter+=h_counter;
+        // printf("h_counter = %d\n", h_counter);total_counter+=h_counter;
         UpdatePtr ptr(h_counter, d_src, d_dest);
         Update batch_update(ptr);
         hornet.erase(batch_update);
 
-        TM.stop();
-        batchtime += TM.duration();
+        // TM.stop();
+        // batchtime += TM.duration();
         // TM.print("Batch deletion");
+        // TM.start();
+
         TM.start();
+        if(1){
+            forAllEdges(hornet, queue,
+                    findNew { d_found, queue},load_balancing);
+        }else{
 
+        }
 
-        forAllEdges(hornet, queue,
-                findNew { d_found, queue},load_balancing);
+        TM.stop();
+        traversal += TM.duration();
+
         queue.swap();
         level++;
 
-        TM.stop();
-        // TM.print("Forward progress");
+        // TM.stop();
 
-        // if(queue.size() > 0){
-        //     gpu::memsetZero(d_batchSize);  //reset source distance
-
-
-        //     forAllEdges(hornet_inv, queue,
-        //         createBatch { d_found, d_src, d_dest, d_batchSize},load_balancing);
-
-
-        //     batch_t h_counter;
-        //     cudaMemcpy(&h_counter,d_batchSize, sizeof(batch_t),cudaMemcpyDeviceToHost);
-        //     UpdatePtr ptr(h_counter, d_src, d_dest);
-        //     Update batch_update(ptr);
-        //     hornet.erase(batch_update);
-        // }
-        // break;
     }
 
-    printf("Traversal time %f\n",traversal);
-    printf("Batch time     %f\n",batchtime);
-    printf("Number of deleted edges %d\n",total_counter);
+    printf("%f,",traversal);
+    // printf("%f,",batchtime);
 
-    TM.stop();
-    cudaProfilerStop();
+    // printf("Traversal time %f\n",traversal);
+    // printf("Batch time     %f\n",batchtime);
+    // printf("Number of deleted edges %d\n",total_counter);
+
+    // TM.stop();
+    // cudaProfilerStop();
     // TM.print("Reverse BFS");
 
-    printf("Number of levels is %d\n", level);
+    // printf("Number of levels is %d\n", level);
 }
 
 

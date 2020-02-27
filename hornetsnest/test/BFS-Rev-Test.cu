@@ -34,36 +34,51 @@ int exec(int argc, char* argv[]) {
 
 
     HornetGraph hornet_graph_inv(hornet_init_inverse);
-    HornetGraph hornet_graph(hornet_init);
 
 
-    std::cout << "hornet_graph_inv : " << hornet_graph_inv.nV() << " " << hornet_graph_inv.nE() << std::endl;
-    std::cout << "hornet_graph     : " << hornet_graph.nV() << " " << hornet_graph.nE() << std::endl;
+        // std::cout << "hornet_graph_inv : " << hornet_graph_inv.nV() << " " << hornet_graph_inv.nE() << std::endl;
+        // std::cout << "hornet_graph     : " << hornet_graph.nV() << " " << hornet_graph.nE() << std::endl;
 
     // for(int i=0; i<10; i++){
     //     std::cout << graph.csr_in_offsets()[i] << " : " << graph.csr_out_offsets()[i] << std::endl;
     // }
 
-    ReverseDeleteBFS rev_del_bfs(hornet_graph, hornet_graph_inv);
  
 	vid_t root = graph.max_out_degree_id();
-	if (argc==3)
-	  root = atoi(argv[2]);
+	// if (argc==3)
+	//   root = atoi(argv[2]);
+
+    int numberRoots = 10;
+    if (argc==3)
+      numberRoots = atoi(argv[2]);
+
 
     std::cout << "My root is " << root << std::endl;
 
-    rev_del_bfs.reset();
-    rev_del_bfs.set_parameters(root);
+    // rev_del_bfs.set_parameters(root);
+
+    float totalTime = 0.0;
 
     Timer<DEVICE> TM;
-    cudaProfilerStart();
-    TM.start();
 
-    rev_del_bfs.run(hornet_graph_inv);
+    for (int i=0; i<numberRoots;i++){
+        HornetGraph hornet_graph(hornet_init);
+        ReverseDeleteBFS rev_del_bfs(hornet_graph, hornet_graph_inv);
+        rev_del_bfs.reset();
 
-    TM.stop();
-    cudaProfilerStop();
-    TM.print("Reverse BFS");
+        // cudaProfilerStart();
+        TM.start();
+            rev_del_bfs.set_parameters((root+i)%graph.nV());
+            rev_del_bfs.run(hornet_graph_inv);
+        TM.stop();
+        // printf("duration %f\n",TM.duration());
+        totalTime += TM.duration();
+        // cudaProfilerStop();
+    }
+
+    printf("\nReverse BFS time: %f ms\n",totalTime);
+
+    // TM.print("Reverse BFS");
 
     return 0;
 }
