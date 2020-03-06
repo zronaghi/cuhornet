@@ -226,8 +226,8 @@ __global__ void forAllEdgesAdjUnionImbalancedKernelSpGEMM(hornetDevice hornetDev
 													int flag, 
 													Operator op) {
 
-	if (blockIdx.x==0)
-	printf("%d %d\n,",threadIdx.x,array[threadIdx.x]);
+	// if (blockIdx.x==0)
+	// printf("%d %d\n,",threadIdx.x,array[threadIdx.x]);
     // using namespace adj_union;
     // using vid_t = typename hornetDevice::VertexType;
     auto id = blockIdx.x * blockDim.x + threadIdx.x;
@@ -551,12 +551,18 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     host::allocate(h_IntersectCount, hornetA.nV()*hornetA.nV());
     cudaMemcpy(h_IntersectCount, d_IntersectCount, hornetA.nV()*hornetA.nV()*sizeof (triangle_t), cudaMemcpyDeviceToHost);
     int NNZ=0;
+    triangle_t sum_row=0;
     for (int i=0; i<hornetA.nV()*hornetA.nV(); i++){
+    	if (i<hornetA.nV()){
+    		printf ("%llu", h_IntersectCount[i]);
+    		sum_row += h_IntersectCount[i];
+    	}
         if (h_IntersectCount[i] != 0){
         	// printf("i is = %d \n", i);
         	NNZ++;
         }
     }
+    printf("sum_row = %llu \n", sum_row);
     cudaDeviceSynchronize();
     printf("NNZ = %d \n", NNZ);
 
