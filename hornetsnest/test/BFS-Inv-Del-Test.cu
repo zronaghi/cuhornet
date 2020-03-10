@@ -22,6 +22,8 @@ int exec(int argc, char* argv[]) {
     CommandLineParam cmd(graph, argc, argv,false);
 
 
+
+
     HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
                            graph.csr_out_edges());
 
@@ -30,6 +32,10 @@ int exec(int argc, char* argv[]) {
                                    graph.csr_in_offsets(),
                                    graph.csr_in_edges());
 
+
+    std::vector<wgt0_t> edge_meta_0(graph.nE(), 0);
+    hornet_init.insertEdgeData(edge_meta_0.data());
+    hornet_init_inverse.insertEdgeData(edge_meta_0.data());
 
 
 

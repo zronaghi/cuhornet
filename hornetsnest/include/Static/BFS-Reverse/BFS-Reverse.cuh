@@ -23,12 +23,17 @@ using found_t = vid_t;
 using dist_t = int;
 using batch_t = int;
 
-using HornetGraph = ::hornet::gpu::Hornet<vid_t>;
-using HornetInit  = ::hornet::HornetInit<vid_t>;
+using wgt0_t = vid_t;
+// using HornetGraph = ::hornet::gpu::Hornet<vid_t>;
+// using HornetInit  = ::hornet::HornetInit<vid_t>;
+// using UpdatePtr   = ::hornet::BatchUpdatePtr<vid_t, hornet::EMPTY, hornet::DeviceType::DEVICE>;
+// using Update      = ::hornet::gpu::BatchUpdate<vid_t>;
 
 
-using UpdatePtr   = ::hornet::BatchUpdatePtr<vid_t, hornet::EMPTY, hornet::DeviceType::DEVICE>;
-using Update      = ::hornet::gpu::BatchUpdate<vid_t>;
+using HornetInit   = ::hornet::HornetInit<vid_t, hornet::EMPTY, hornet::TypeList<wgt0_t>>;
+using HornetGraph = hornet::gpu::Hornet<vid_t, hornet::EMPTY, hornet::TypeList<wgt0_t>>;
+using UpdatePtr    = hornet::BatchUpdatePtr<vid_t, hornet::TypeList<wgt0_t>, hornet::DeviceType::DEVICE>;
+using Update       = hornet::gpu::BatchUpdate<vid_t, hornet::TypeList<wgt0_t>>;
 
 
 struct invBFSData {
@@ -53,7 +58,7 @@ struct invBFSData {
 #include "lrb.cuh"
 namespace hornets_nest {
 
-
+template <typename HornetGraph>
 class ReverseDeleteBFS : public StaticAlgorithm<HornetGraph> {
 public:
     ReverseDeleteBFS(HornetGraph& hornet, HornetGraph& hornet_in);
@@ -86,7 +91,9 @@ private:
 };
 
 const dist_t INF = std::numeric_limits<dist_t>::max();
+}
 
+namespace hornets_nest {
 
 
 //------------------------------------------------------------------------------
@@ -137,8 +144,13 @@ struct createBatch {
 // ReverseDeleteBFS //
 //////////////////////
 
+
+#define ReverseDeleteBFS ReverseDeleteBFS<HornetGraph>
+
+
+template <typename HornetGraph>
 ReverseDeleteBFS::ReverseDeleteBFS(HornetGraph& hornet, HornetGraph& hornet_inv) :
-                                 StaticAlgorithm(hornet),
+                                 StaticAlgorithm<HornetGraph>(hornet),
                                  queue(hornet,5),
                                  load_balancing(hornet) {
     gpu::allocate(d_found, hornet.nV());
@@ -156,6 +168,7 @@ ReverseDeleteBFS::ReverseDeleteBFS(HornetGraph& hornet, HornetGraph& hornet_inv)
     reset();
 }
 
+template <typename HornetGraph>
 void ReverseDeleteBFS::release() {
     if(d_found == nullptr){
         gpu::free(d_found);d_found = nullptr;
@@ -181,31 +194,36 @@ void ReverseDeleteBFS::release() {
     }
 }
 
+template <typename HornetGraph>
 ReverseDeleteBFS::~ReverseDeleteBFS() {
     release();
 }
 
+template <typename HornetGraph>
 void ReverseDeleteBFS::reset() {
     current_level = 1;
     queue.clear();
     auto found = d_found;
 
-    forAllnumV(hornet, [=] __device__ (int i){ found[i] = 0; } );
+    forAllnumV(StaticAlgorithm<HornetGraph>::hornet, [=] __device__ (int i){ found[i] = 0; } );
     found_t rootfound=1;
     cudaMemcpy(d_found+root,&rootfound,sizeof(found_t),cudaMemcpyHostToDevice);
 }
 
+template <typename HornetGraph>
 void ReverseDeleteBFS::set_parameters(vid_t root_) {
     root = root_;
     queue.insert(root);// insert bfs source in the frontier
     // gpu::memsetZero(d_distances + root);  //reset source distance
 }
 
+template <typename HornetGraph>
 void ReverseDeleteBFS::run() {
 
     printf("This function is not doing anything right now. Function requires overriding\n");
 }
 
+template <typename HornetGraph>
 void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection) {
 
     Timer<DEVICE> TM;
@@ -235,9 +253,9 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection)
         batch_t h_counter;
         cudaMemcpy(&h_counter,d_batchSize, sizeof(batch_t),cudaMemcpyDeviceToHost);
         // printf("h_counter = %d\n", h_counter);total_counter+=h_counter;
-        UpdatePtr ptr(h_counter, d_src, d_dest);
+        UpdatePtr ptr(h_counter, d_src, d_dest,NULL);
         Update batch_update(ptr);
-        hornet.erase(batch_update);
+        StaticAlgorithm<HornetGraph>::hornet.erase(batch_update);
 
         if(timeSection&2){
             TM.stop();
@@ -253,7 +271,7 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection)
             TM.start();
 
         if(flagAlg){
-            forAllEdges(hornet, queue,
+            forAllEdges(StaticAlgorithm<HornetGraph>::hornet, queue,
                     findNew { d_found, queue},load_balancing);
         }else{
 
@@ -261,7 +279,7 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection)
 
             cudaMemset(hd_bfsData().d_bins,0,33*sizeof(vid_t));
 
-            forAllVertices(hornet, queue, countDegrees{hd_bfsData().d_bins});
+            forAllVertices(StaticAlgorithm<HornetGraph>::hornet, queue, countDegrees{hd_bfsData().d_bins});
             // cudaEventSynchronize(syncer);    
 
             binPrefixKernel <<<1,32>>> (hd_bfsData().d_bins,hd_bfsData().d_binsPrefix);  
@@ -278,7 +296,7 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection)
             int rebinblocks = (elements)/RB_BLOCK_SIZE + (((elements)%RB_BLOCK_SIZE)?1:0);
 
             if(rebinblocks){
-              rebinKernel<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device(),queue.device_input_ptr(),
+              rebinKernel<<<rebinblocks,RB_BLOCK_SIZE>>>(StaticAlgorithm<HornetGraph>::hornet.device(),queue.device_input_ptr(),
                 hd_bfsData().d_binsPrefix, hd_bfsData().d_lrbRelabled,elements);
             }
 
@@ -287,7 +305,7 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection)
             int vertices = h_binsPrefix[20];
             int blockSize = 1024;
             if(vertices>0){
-                BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0>>>(hornet.device(),hd_bfsData,d_found, queue,vertices,0);            
+                BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0>>>(StaticAlgorithm<HornetGraph>::hornet.device(),hd_bfsData,d_found, queue,vertices,0);            
             }
 
             for(int i=1; i<7; i++){
@@ -295,7 +313,7 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection)
                 if(vertices>0){
                     // printf("fat is running %d \n",h_binsPrefix[bi]);
                     // BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,streams[i]>>>(hornet.device(),hd_bfsData,vertices,h_binsPrefix[19+i]);
-                    BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,0>>>(hornet.device(),hd_bfsData,d_found, queue,vertices,h_binsPrefix[19+i]);
+                    BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,0>>>(StaticAlgorithm<HornetGraph>::hornet.device(),hd_bfsData,d_found, queue,vertices,h_binsPrefix[19+i]);
                 }
                 if(i==4)
                     blockSize=128;
@@ -306,7 +324,7 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection)
             int smallVertices = elements-h_binsPrefix[bi];
             int smallVerticesBlocks = (smallVertices)/smallBlockSize + ((smallVertices%smallBlockSize)?1:0);
             if(smallVerticesBlocks>0){                   
-                BFSTopDown_One_Iter_kernel<<<smallVerticesBlocks,smallBlockSize,0>>>(hornet.device(),
+                BFSTopDown_One_Iter_kernel<<<smallVerticesBlocks,smallBlockSize,0>>>(StaticAlgorithm<HornetGraph>::hornet.device(),
                         hd_bfsData,d_found, queue,smallVertices,h_binsPrefix[bi]);
             }
             // cudaEventSynchronize(syncer);    
@@ -342,7 +360,7 @@ void ReverseDeleteBFS::run(HornetGraph& hornet_inv, int flagAlg,int timeSection)
 }
 
 
-
+template <typename HornetGraph>
 bool ReverseDeleteBFS::validate() {
   return true;
 }
