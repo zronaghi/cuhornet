@@ -49,8 +49,16 @@ int exec(int argc, char* argv[]) {
 	//   root = atoi(argv[2]);
 
     int numberRoots = 10;
-    if (argc==3)
+    if (argc>=3)
       numberRoots = atoi(argv[2]);
+
+    int alg = 0;
+    if (argc>=4)
+      alg = atoi(argv[3]);
+
+    int timeSection = 0;
+    if (argc>=5)
+      timeSection = atoi(argv[4]);
 
 
     std::cout << "My root is " << root << std::endl;
@@ -69,7 +77,7 @@ int exec(int argc, char* argv[]) {
         // cudaProfilerStart();
         TM.start();
             rev_del_bfs.set_parameters((root+i)%graph.nV());
-            rev_del_bfs.run(hornet_graph_inv);
+            rev_del_bfs.run(hornet_graph_inv,alg,timeSection);
         TM.stop();
         // printf("duration %f\n",TM.duration());
         totalTime += TM.duration();
