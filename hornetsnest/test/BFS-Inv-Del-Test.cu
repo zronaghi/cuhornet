@@ -62,12 +62,17 @@ int exec(int argc, char* argv[]) {
     if (argc>=4)
       alg = atoi(argv[3]);
 
-    int timeSection = 0;
+    int deletion = 0;
     if (argc>=5)
-      timeSection = atoi(argv[4]);
+      deletion = atoi(argv[4]);
+
+    int timeSection = 0;
+    if (argc>=6)
+      timeSection = atoi(argv[5]);
 
 
     std::cout << "My root is " << root << std::endl;
+
 
     // rev_del_bfs.set_parameters(root);
 
@@ -80,10 +85,18 @@ int exec(int argc, char* argv[]) {
         ReverseDeleteBFS rev_del_bfs(hornet_graph, hornet_graph_inv);
         rev_del_bfs.reset();
 
+        rev_del_bfs.sortHornets(hornet_graph_inv);
+
+        rev_del_bfs.SetInverseIndices(hornet_graph_inv);
+
         // cudaProfilerStart();
         TM.start();
             rev_del_bfs.set_parameters((root+i)%graph.nV());
-            rev_del_bfs.run(hornet_graph_inv,alg,timeSection);
+            if(deletion==0)
+                rev_del_bfs.run(hornet_graph_inv,alg,timeSection);
+            else
+                rev_del_bfs.runNoDelete(hornet_graph_inv,alg,timeSection);
+                
         TM.stop();
         // printf("duration %f\n",TM.duration());
         totalTime += TM.duration();

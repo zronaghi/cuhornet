@@ -93,7 +93,7 @@ __global__ void  rebinKernel(
 
 
 
-template<typename HornetDevice>
+template<bool onlyNonDeleted, typename HornetDevice>
 __global__ void BFSTopDown_One_Iter_kernel(
   HornetDevice hornet , 
   HostDeviceVar<invBFSData> bfs, 
@@ -113,6 +113,10 @@ __global__ void BFSTopDown_One_Iter_kernel(
     int length = hornet.vertex(src).degree();
 
     for (int i=0; i<length; i++) {
+       if(onlyNonDeleted){
+            if(hornet.vertex(src).edge(i).template field<0>()==1)
+                continue;
+       }
        vid_t dst_id = neighPtr[i]; 
 
         if(d_found[dst_id] == 0){
@@ -123,7 +127,7 @@ __global__ void BFSTopDown_One_Iter_kernel(
     }
 }
 
-template<typename HornetDevice>
+template<bool onlyNonDeleted, typename HornetDevice>
 __global__ void BFSTopDown_One_Iter_kernel_fat(
   HornetDevice hornet , 
   HostDeviceVar<invBFSData> bfs,
@@ -146,6 +150,12 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
     int length = hornet.vertex(src).degree();
 
     for (int i=tid; i<length; i+=blockDim.x) {
+
+       if(onlyNonDeleted){
+            if(hornet.vertex(src).edge(i).template field<0>()==1)
+                continue;
+       }
+
        vid_t dst_id = neighPtr[i]; 
 
         if(d_found[dst_id] == 0){
