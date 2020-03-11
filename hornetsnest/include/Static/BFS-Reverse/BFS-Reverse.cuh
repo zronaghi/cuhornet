@@ -177,19 +177,19 @@ struct createBatch {
 __device__ vid_t binarySearch(vid_t *bins, vid_t l, vid_t r, vid_t x) 
 { 
     vid_t vi_low = l, vi_high = r, vi_mid;
-        while (vi_low <= vi_high) {
-            vi_mid = (vi_low+vi_high)/2;
-            // auto comp = (*(bins+vi_mid) - x);
-            auto comp = (bins[vi_mid] - x);
-            if (!comp) {
-                break;
-            }
-            if (comp > 0) {
-                vi_high = vi_mid-1;
-            } else if (comp < 0) {
-                vi_low = vi_mid+1;
-            }
+    while (vi_low <= vi_high) {
+        vi_mid = (vi_low+vi_high)/2;
+        // auto comp = (*(bins+vi_mid) - x);
+        auto comp = (bins[vi_mid] - x);
+        if (!comp) {
+            break;
         }
+        if (comp > 0) {
+            vi_high = vi_mid-1;
+        } else if (comp < 0) {
+            vi_low = vi_mid+1;
+        }
+    }
 
     // if(bins[vi_mid]!=x)
     //     printf("#");
@@ -211,14 +211,15 @@ __global__ void inverseIndexCreation(
     if(k>=N)
         return;
 
-    vid_t* neighPtr = inverseHornet.vertex(k).neighbor_ptr();
-    int length      = inverseHornet.vertex(k).degree();
+    auto ivk = inverseHornet.vertex(k);
+    vid_t* neighPtr = ivk.neighbor_ptr();
+    int length      = ivk.degree();
 
     for (int i=0; i<length; i++) {
 
-       auto myEdge = inverseHornet.vertex(k).edge(i);
+       auto myEdge = ivk.edge(i);
        // vid_t eid = myEdge.dst_id();
-       vid_t eid = inverseHornet.vertex(k).neighbor_ptr()[i];
+       vid_t eid = ivk.neighbor_ptr()[i];
        // myEdge.template field<0>() = 4 ;
 
        myEdge.template field<0>() = binarySearch (originalHornet.vertex(eid).neighbor_ptr(), 0, originalHornet.vertex(eid).degree(),k );
@@ -238,22 +239,16 @@ __global__ void inverseIndexDelete(
 
     vid_t src = currentFrontier[k];
 
-    vid_t* neighPtr = inverseHornet.vertex(src).neighbor_ptr();
-    int length      = inverseHornet.vertex(src).degree();
+    auto ivSrc = inverseHornet.vertex(src);
+
+    vid_t* neighPtr = ivSrc.neighbor_ptr();
+    int length      = ivSrc.degree();
 
     for (int i=0; i<length; i++) {
-       vid_t dest = neighPtr[i];
-       vid_t index = inverseHornet.vertex(src).edge(i). template field<0>() ;
+        vid_t dest = neighPtr[i];
+        vid_t index = ivSrc.edge(i). template field<0>() ;
 
-       originalHornet.vertex(dest).edge(index).template field<0> () = 1;
-
-//        auto myEdge = inverseHornet.vertex(k).edge(i);
-//        // vid_t eid = myEdge.dst_id();
-//        vid_t eid = inverseHornet.vertex(k).neighbor_ptr()[i];
-//        // myEdge.template field<0>() = 4 ;
-
-//        myEdge.template field<0>() = binarySearch (originalHornet.vertex(eid).neighbor_ptr(), 0, originalHornet.vertex(eid).degree(),k );
-
+        originalHornet.vertex(dest).edge(index).template field<0> () = 1;
     }
 }
 
@@ -526,15 +521,42 @@ void ReverseDeleteBFS::runNoDelete(HornetGraph& hornet_inv, int flagAlg,int time
             TM.start();
         gpu::memsetZero(d_batchSize);  //reset source distance
 
+        if(0){
+            const int blockSize = 512;
+            int numberBlocks = (queue.size())/blockSize + ((queue.size()%blockSize)?1:0);
 
-        const int blockSize = 64;
-        int numberBlocks = (queue.size())/blockSize + ((queue.size()%blockSize)?1:0);
+            inverseIndexDelete<<<numberBlocks,blockSize>>>(
+                queue.device_input_ptr(),
+                hornet_inv.device(), 
+                StaticAlgorithm<HornetGraph>::hornet.device(),
+                queue.size());   
+        }else{
 
-        inverseIndexDelete<<<numberBlocks,blockSize>>>(
-            queue.device_input_ptr(),
-            hornet_inv.device(), 
-            StaticAlgorithm<HornetGraph>::hornet.device(),
-            queue.size());
+            int32_t elements = queue.size();
+            cudaMemset(hd_bfsData().d_bins,0,33*sizeof(vid_t));
+            forAllVertices(hornet_inv, queue, countDegrees{hd_bfsData().d_bins});
+
+            binPrefixKernel <<<1,32>>> (hd_bfsData().d_bins,hd_bfsData().d_binsPrefix);  
+            int32_t h_binsPrefix[33];
+            cudaMemcpy(h_binsPrefix, hd_bfsData().d_binsPrefix,sizeof(int32_t)*33, cudaMemcpyDeviceToHost);
+
+
+            const int RB_BLOCK_SIZE = 512;
+            int rebinblocks = (elements)/RB_BLOCK_SIZE + (((elements)%RB_BLOCK_SIZE)?1:0);
+
+            if(rebinblocks){
+              rebinKernel<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet_inv.device(),queue.device_input_ptr(),
+                hd_bfsData().d_binsPrefix, hd_bfsData().d_lrbRelabled,elements);
+            }
+
+              inverseIndexDelete<<<rebinblocks,RB_BLOCK_SIZE>>>(
+                    hd_bfsData().d_lrbRelabled,
+                    hornet_inv.device(), 
+                    StaticAlgorithm<HornetGraph>::hornet.device(),
+                    elements);   
+      
+ 
+        }
 
 
 
@@ -663,10 +685,15 @@ void ReverseDeleteBFS::SetInverseIndices(HornetGraph& hornet_inv) {
 }
 
 template <typename HornetGraph>
-void ReverseDeleteBFS::sortHornets(HornetGraph& hornet_inv){
-    forAllVertices(StaticAlgorithm<HornetGraph>::hornet, SimpleBubbleSort {});
-    forAllVertices(hornet_inv, SimpleBubbleSort {});
+void ReverseDeleteBFS::sortHornets(HornetGraph& hg){
+    forAllVertices(hg, SimpleBubbleSort {});
 }
+
+
+// void ReverseDeleteBFS::sortHornets(HornetGraph& hornet_inv){
+//     forAllVertices(StaticAlgorithm<HornetGraph>::hornet, SimpleBubbleSort {});
+//     forAllVertices(hornet_inv, SimpleBubbleSort {});
+// }
 
 } // namespace hornets_nest
 
