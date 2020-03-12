@@ -85,18 +85,26 @@ int exec(int argc, char* argv[]) {
         ReverseDeleteBFS rev_del_bfs(hornet_graph, hornet_graph_inv);
         rev_del_bfs.reset();
 
-        rev_del_bfs.sortHornets(hornet_graph_inv);
+        if(deletion!=0){
+            // rev_del_bfs.sortHornets(hornet_graph_inv);
+            if(i==0){
+                rev_del_bfs.sortHornets(hornet_graph_inv);
+            }
 
-        rev_del_bfs.SetInverseIndices(hornet_graph_inv);
+            rev_del_bfs.sortHornets(hornet_graph);
+            rev_del_bfs.SetInverseIndices(hornet_graph_inv);            
+        }
 
         // cudaProfilerStart();
         TM.start();
             rev_del_bfs.set_parameters((root+i)%graph.nV());
-            if(deletion==0)
+            if(deletion==0){
                 rev_del_bfs.run(hornet_graph_inv,alg,timeSection);
-            else
+            }
+            else{
                 rev_del_bfs.runNoDelete(hornet_graph_inv,alg,timeSection);
-                
+            }
+
         TM.stop();
         // printf("duration %f\n",TM.duration());
         totalTime += TM.duration();
