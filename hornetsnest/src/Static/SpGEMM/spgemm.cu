@@ -201,19 +201,49 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
         } else {
             bin_index = (MAX_ADJ_UNIONS_BINS/2)+(log_u*BINS_1D_DIM+log_v); 
         }
-        // Either count or add the item to the appropriate queue position
-        if (countOnly)
-            atomicAdd(&(d_queue_info.d_queue_sizes[bin_index]), 1ULL);
-        else {
-            unsigned long long id = atomicAdd(&(d_queue_info.d_queue_pos[bin_index]), 1ULL);
-            d_queue_info.d_edge_queue[id*2] = row;
-            d_queue_info.d_edge_queue[id*2+1] = col;
-            // d_queue_info.d_edge_queue[0] = row;
-            // d_queue_info.d_edge_queue[1] = col;
-            // if (blockIdx.x == 0){
-            // 	printf("(row,col) = (%d,%d)", row, col);
-            // }
-    }
+
+        if(1){
+     // Either count or add the item to the appropriate queue position
+            if (countOnly)
+                atomicAdd(&(d_queue_info.d_queue_sizes[bin_index]), 1ULL);
+            else {
+                unsigned long long id = atomicAdd(&(d_queue_info.d_queue_pos[bin_index]), 1ULL);
+                d_queue_info.d_edge_queue[id*2] = row;
+                d_queue_info.d_edge_queue[id*2+1] = col;
+            }
+
+        }else{
+            __shared__ int32_t localBins[MAX_ADJ_UNIONS_BINS];
+            __shared__ int32_t localPos[MAX_ADJ_UNIONS_BINS];
+            int tid =  threadIdx.x + blockDim.x*threadIdx.y;
+            int stride = blockDim.y*blockDim.x;
+            for (int tid2= tid; tid2<MAX_ADJ_UNIONS_BINS; tid2+=stride){
+              localBins[tid2]=0;
+              localPos[tid2] =0;
+            }
+            __syncthreads();
+
+            atomicAdd(localBins + bin_index, 1ULL);
+            __syncthreads();
+
+            for (int tid2= tid; tid2<MAX_ADJ_UNIONS_BINS; tid2+=stride){
+                if(localBins [tid2] == 0)
+                    continue;
+                if(countOnly){
+                    atomicAdd(&(d_queue_info.d_queue_sizes[tid2]), localBins [tid2]);
+                }
+                else {
+                    localPos[tid2]=atomicAdd(&(d_queue_info.d_queue_pos[tid2]), localBins[tid2]);
+                }
+            }
+            __syncthreads();
+
+            if(!countOnly){
+                unsigned long long id = atomicAdd(localPos+bin_index, 1ULL);
+                d_queue_info.d_edge_queue[id*2] = row;
+                d_queue_info.d_edge_queue[id*2+1] = col;
+        }        
+    }	
 }
 
 template<typename hornetDevice, typename T, typename Operator>
@@ -376,7 +406,7 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
 		}
         if((FLAG&1)==0){
             int comp_equals, comp1, comp2, ui_bound, vi_bound;
-            //printf("Intersecting %d, %d: %d -> %d, %d -> %d\n", u.id(), v.id(), *ui_begin, *ui_end, *vi_begin, *vi_end);
+            printf("Intersecting %d, %d: %d -> %d, %d -> %d\n", u.id(), v.id(), *ui_begin, *ui_end, *vi_begin, *vi_end);
             while (vi_begin <= vi_end && ui_begin <= ui_end) {
                 comp_equals = (*ui_begin == *vi_begin);
                 count += comp_equals;
@@ -453,8 +483,9 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     //     forAllVertexPairs(hornet, vertex_pairs, BinEdges {hd_queue_info_spgemm, true, WORK_FACTOR});
     // else
     //forAllEdgeVertexPairs(hornet, BinEdges {hd_queue_info_spgemm, true, WORK_FACTOR}, load_balancing);
+    // const int BLOCK_SIZE = 64;
     const int BLOCK_SIZE = 32;
-    dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
     dim3 dimGrid(hornetB.nV()/dimBlock.x + ((hornetB.nV()%dimBlock.x)?1:0), hornetA.nV()/dimBlock.y + ((hornetA.nV()%dimBlock.y)?1:0));
     bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<dimGrid,dimBlock>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, true, 100);
 
