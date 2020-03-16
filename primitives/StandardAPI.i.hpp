@@ -65,8 +65,9 @@ namespace gpu {
 
 void initializeRMMPoolAllocation(const size_t initPoolSize) {
     rmmOptions_t options;
-    options.allocation_mode = PoolAllocation;
-    options.initial_pool_size = initPoolSize;
+    options.allocation_mode = CudaDefaultAllocation;
+    // options.allocation_mode = PoolAllocation;
+    // options.initial_pool_size = initPoolSize;
     auto result = rmmInitialize(&options);
     if (result != RMM_SUCCESS) {
         RMM_ERROR_HANDLER("hornets_nest::gpu::initializeRMMPoolAllocation", "rmmInitialize", result);
