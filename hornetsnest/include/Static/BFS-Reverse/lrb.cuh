@@ -173,21 +173,26 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
 
 // A recursive binary search function. It returns location of x in given array arr[l..r] is present, 
 // otherwise it returns the bin id with the smallest value larger than x
-__device__ vid_t binarySearch(vid_t *bins, vid_t l, vid_t r, vid_t x) 
+inline __device__ vid_t binarySearch(vid_t *bins, vid_t l, vid_t r, vid_t x) 
 { 
     vid_t vi_low = l, vi_high = r, vi_mid;
     while (vi_low <= vi_high) {
-        vi_mid = (vi_low+vi_high)/2;
+        // vi_mid = (vi_low+vi_high)/2;
+        vi_mid = (vi_low+vi_high)>>1;
         // auto comp = (*(bins+vi_mid) - x);
         auto comp = (bins[vi_mid] - x);
         if (!comp) {
             break;
         }
-        if (comp > 0) {
-            vi_high = vi_mid-1;
-        } else if (comp < 0) {
-            vi_low = vi_mid+1;
-        }
+        int geq=comp>1;
+        vi_high = geq*(vi_mid-1);
+        vi_low = (1-geq)*(vi_mid+1);
+
+        // if (comp > 0) {
+        //     vi_high = vi_mid-1;
+        // } else if (comp < 0) {
+        //     vi_low = vi_mid+1;
+        // }
     }
 
     // if(bins[vi_mid]!=x)
@@ -209,20 +214,19 @@ __global__ void inverseIndexCreation(
     int k = threadIdx.x + blockIdx.x *blockDim.x;
     if(k>=N)
         return;
+      auto sum=0;
 
     auto ivk = inverseHornet.vertex(k);
     vid_t* neighPtr = ivk.neighbor_ptr();
     int length      = ivk.degree();
-
+    auto nPtr = ivk.neighbor_ptr();
     for (int i=0; i<length; i++) {
 
        auto myEdge = ivk.edge(i);
-       // vid_t eid = myEdge.dst_id();
-       vid_t eid = ivk.neighbor_ptr()[i];
-       // myEdge.template field<0>() = 4 ;
+       // vid_t eid = ivk.neighbor_ptr()[i];
+       vid_t eid = nPtr[i];
 
        myEdge.template field<0>() = binarySearch (originalHornet.vertex(eid).neighbor_ptr(), 0, originalHornet.vertex(eid).degree(),k );
-
     }
 }
 
@@ -249,19 +253,12 @@ __global__ void inverseIndexDeleteFat(
     vid_t* neighPtr = ivSrc.neighbor_ptr();
     int length      = ivSrc.degree();
 
-    // for (int i=0; i<length; i++) {
     for (int i=tid; i<length; i+=blockDim.x) {
-
-
         vid_t dest = neighPtr[i];
         vid_t index = ivSrc.edge(i). template field<0>() ;
-
         originalHornet.vertex(dest).edge(index).template field<0> () = 1;
     }
 }
-
-
-
 
 template<typename HornetDevice>
 __global__ void inverseIndexDelete(
@@ -285,12 +282,9 @@ __global__ void inverseIndexDelete(
     for (int i=0; i<length; i++) {
         vid_t dest = neighPtr[i];
         vid_t index = ivSrc.edge(i). template field<0>() ;
-
         originalHornet.vertex(dest).edge(index).template field<0> () = 1;
     }
 }
-
-
 
 
 } // namespace hornets_nest

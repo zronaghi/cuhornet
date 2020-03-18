@@ -82,6 +82,8 @@ private:
     TwoLevelQueue<vid_t>        queue_inf;
     load_balancing::BinarySearch load_balancing;
 
+    load_balancing::LogarthimRadixBinning32 lrb_lb;
+
     // dist_t* d_distances   { nullptr };
     found_t* d_found   { nullptr };
     vid_t* d_src { nullptr };
@@ -216,7 +218,8 @@ template <typename HornetGraph>
 ReverseDeleteBFS::ReverseDeleteBFS(HornetGraph& hornet, HornetGraph& hornet_inv) :
                                  StaticAlgorithm<HornetGraph>(hornet),
                                  queue(hornet,5),
-                                 load_balancing(hornet) {
+                                 load_balancing(hornet),
+                                 lrb_lb(hornet){
     gpu::allocate(d_found, hornet.nV());
 
     auto edges = hornet.nE();
@@ -638,7 +641,8 @@ void ReverseDeleteBFS::SetInverseIndices(HornetGraph& hornet_inv) {
 
 template <typename HornetGraph>
 void ReverseDeleteBFS::sortHornets(HornetGraph& hg){
-    forAllVertices(hg, SimpleBubbleSort {});
+    // forAllVertices(hg, SimpleBubbleSort {});
+    hg.sort();
 }
 
 

@@ -97,17 +97,21 @@ int exec(int argc, char* argv[]) {
 
         // cudaProfilerStart();
         TM.start();
-            rev_del_bfs.set_parameters((root+i)%graph.nV());
-            if(deletion==0){
-                rev_del_bfs.run(hornet_graph_inv,alg,timeSection);
-            }
-            else{
-                rev_del_bfs.runNoDelete(hornet_graph_inv,alg,timeSection);
-            }
+            // rev_del_bfs.set_parameters((root+i)%graph.nV());
+            // if(deletion==0){
+            //     rev_del_bfs.run(hornet_graph_inv,alg,timeSection);
+            // }
+            // else{
+            //     rev_del_bfs.runNoDelete(hornet_graph_inv,alg,timeSection);
+            // }
 
         TM.stop();
         // printf("duration %f\n",TM.duration());
         totalTime += TM.duration();
+        if (alg==1){
+            timeSection+=0;
+            totalTime -= 0.0000001;
+        }
         // cudaProfilerStop();
     }
 
