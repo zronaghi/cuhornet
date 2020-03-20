@@ -36,6 +36,8 @@ int exec(int argc, char* argv[]) {
 
     std::cout << "My root is " << root << std::endl;
 
+
+
     bfs_top_down.set_parameters(root);
 
     cudaProfilerStart();

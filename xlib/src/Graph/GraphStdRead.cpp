@@ -54,8 +54,8 @@ void GraphStd<vid_t, eoff_t>::readMarket(std::ifstream& fin, bool print) {
         assert(index1 <= _nV && index2 <= _nV);
         _coo_edges[lines] = { index1 - 1, index2 - 1 };
 
-        if (print)
-            progress.next(lines);
+        // if (print)
+        //     progress.next(lines);
         xlib::skip_lines(fin);
     }
 }
