@@ -30,10 +30,11 @@ file(GLOB_RECURSE SSSP_SRCS     ${PROJECT_SOURCE_DIR}/src/Static/ShortestPath/SS
 file(GLOB_RECURSE SPMV_SRCS     ${PROJECT_SOURCE_DIR}/src/Static/SpMV/SpMV.cu)
 file(GLOB_RECURSE PR_SRCS       ${PROJECT_SOURCE_DIR}/src/Static/PageRank/PageRank.cu)
 file(GLOB_RECURSE TRI2_SRCS     ${PROJECT_SOURCE_DIR}/src/Static/TriangleCounting/triangle2.cu)
+file(GLOB_RECURSE BFBFS_SRCS     ${PROJECT_SOURCE_DIR}/src/Static/butterfly/butterfly-bfs.cu)
 file(GLOB_RECURSE X_SRCS        ${PROJECT_SOURCE_DIR}/../xlib/src/*)
 file(GLOB_RECURSE H_SRCS        ${PROJECT_SOURCE_DIR}/../hornet/src/*)
 
-add_library(hornetAlg ${X_SRCS} ${H_SRCS} ${DUMMY} ${BFS_SRCS} ${BC_SRCS} ${BC_SRCS2} ${BC_SRCS3} ${BUBFS_SRC} ${CC_SRCS} ${CLCOEFF_SRCS} ${SSSP_SRCS} ${SPMV_SRCS} ${PR_SRCS} ${KCORE_SRCS} ${TRI2_SRCS})
+add_library(hornetAlg ${X_SRCS} ${H_SRCS} ${DUMMY} ${BFS_SRCS} ${BC_SRCS} ${BC_SRCS2} ${BC_SRCS3} ${BUBFS_SRC} ${CC_SRCS} ${CLCOEFF_SRCS} ${SSSP_SRCS} ${SPMV_SRCS} ${PR_SRCS} ${KCORE_SRCS} ${TRI2_SRCS} ${BFBFS_SRCS})
 
 target_link_libraries(hornetAlg ${RMM_LIBRARY})
 
@@ -53,9 +54,8 @@ add_executable(katzApprox   test/KatzTopKTest.cu)
 add_executable(kcore        test/KCoreTest.cu)
 add_executable(ktruss       test/KTrussTest.cu)
 add_executable(triangle2    test/TriangleTest2.cu)
-add_executable(clus-coeff   test/ClusCoeffTest.cu)
 add_executable(pr           test/PageRankTest.cu)
-add_executable(butterfly  test/butterfly-bfsTest.cu)
+add_executable(butterfly    test/butterfly-bfsTest.cu)
 
 
 target_link_libraries(dummy         hornetAlg)
@@ -71,7 +71,6 @@ target_link_libraries(katzApprox    hornetAlg)
 target_link_libraries(kcore         hornetAlg)
 target_link_libraries(ktruss        hornetAlg)
 target_link_libraries(triangle2     hornetAlg)
-target_link_libraries(clus-coeff    hornetAlg)
 target_link_libraries(pr            hornetAlg)
 target_link_libraries(butterfly		hornetAlg)
 target_link_libraries(butterfly		OpenMP::OpenMP_CXX)
