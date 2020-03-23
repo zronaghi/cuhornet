@@ -184,15 +184,15 @@ inline __device__ vid_t binarySearch(vid_t *bins, vid_t l, vid_t r, vid_t x)
         if (!comp) {
             break;
         }
-        int geq=comp>1;
-        vi_high = geq*(vi_mid-1);
-        vi_low = (1-geq)*(vi_mid+1);
+        // int geq=comp>1;
+        // vi_high = geq*(vi_mid-1);
+        // vi_low = (1-geq)*(vi_mid+1);
 
-        // if (comp > 0) {
-        //     vi_high = vi_mid-1;
-        // } else if (comp < 0) {
-        //     vi_low = vi_mid+1;
-        // }
+        if (comp > 0) {
+            vi_high = vi_mid-1;
+        } else if (comp < 0) {
+            vi_low = vi_mid+1;
+        }
     }
 
     // if(bins[vi_mid]!=x)
@@ -214,7 +214,6 @@ __global__ void inverseIndexCreation(
     int k = threadIdx.x + blockIdx.x *blockDim.x;
     if(k>=N)
         return;
-      auto sum=0;
 
     auto ivk = inverseHornet.vertex(k);
     vid_t* neighPtr = ivk.neighbor_ptr();
