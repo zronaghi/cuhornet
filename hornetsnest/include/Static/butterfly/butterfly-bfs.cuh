@@ -7,8 +7,8 @@
 namespace hornets_nest {
 
 using HornetInit  = ::hornet::HornetInit<vert_t>;
-// using HornetGraph = ::hornet::gpu::Hornet<vert_t>;
-using HornetGraph = ::hornet::gpu::HornetStatic<vert_t>;
+using HornetGraph = ::hornet::gpu::Hornet<vert_t>;
+// using HornetGraph = ::hornet::gpu::HornetStatic<vert_t>;
 
 struct butterflyData {
     degree_t currLevel;
