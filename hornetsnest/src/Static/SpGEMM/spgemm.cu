@@ -202,7 +202,7 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
             bin_index = (MAX_ADJ_UNIONS_BINS/2)+(log_u*BINS_1D_DIM+log_v); 
         }
 
-        if(0){
+        if(1){
      // Either count or add the item to the appropriate queue position
             if (countOnly)
                 atomicAdd(&(d_queue_info.d_queue_sizes[bin_index]), 1ULL);
@@ -322,8 +322,8 @@ void forAllEdgesAdjUnionImbalancedSpGEMM(HornetGraph &hornetA,
 								   		 const unsigned long long end, 
 								   		 const Operator &op,
 								    	 unsigned long long threads_per_union, 
-								   		 int flag,
-								   		 cudaStream_t stream) {
+								   		 int flag/*,
+								   		 cudaStream_t stream*/) {
     unsigned long long size = end - start; // end is exclusive
     auto grid_size = size*threads_per_union;
     auto _size = size;
@@ -336,7 +336,7 @@ void forAllEdgesAdjUnionImbalancedSpGEMM(HornetGraph &hornetA,
         return;
 
     forAllEdgesAdjUnionImbalancedKernelSpGEMM
-        <<< xlib::ceil_div<BLOCK_SIZE_OP2>(grid_size), BLOCK_SIZE_OP2, 0, stream >>>
+        <<< xlib::ceil_div<BLOCK_SIZE_OP2>(grid_size), BLOCK_SIZE_OP2/*, 0, stream*/ >>>
         (hornetA.device(), hornetB.device(), queue, start, end, threads_per_union, flag, op);
     CHECK_CUDA_ERROR
 }
@@ -585,7 +585,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
 								   		 hd_queue_info_spgemm.d_edge_queue,
 								   		 start_index, end_index, 
 								   		 OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, 
-								    	 threads_per, 1, streams[streamCounter++]);
+								    	 threads_per, 1/*, streams[streamCounter++]*/);
             //forAllEdgesAdjUnionImbalancedSpGEMM(hornetA, hornetB, /*(vid_t*) hd_queue_info_spgemm().d_edge_queue,*/ start_index, end_index, OPERATOR_AdjIntersectionCountBalanced {(triangle_t*) NULL}, threads_per, 1);
         }
         start_index = end_index;
@@ -607,7 +607,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                                          hd_queue_info_spgemm.d_edge_queue,
                                          start_index, end_index, 
                                          OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, 
-                                         threads_per, 1, streams[streamCounter++]); 
+                                         threads_per, 1/*, streams[streamCounter++]*/); 
         //forAllEdgesAdjUnionImbalanced(hornet, hd_queue_info_spgemm().d_edge_queue, start_index, end_index, op, threads_per, 1);
     }
 
