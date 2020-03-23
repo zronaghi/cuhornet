@@ -25,7 +25,7 @@ file(GLOB_RECURSE BC_SRCS3      ${PROJECT_SOURCE_DIR}/src/Static/BetweennessCent
 file(GLOB_RECURSE BUBFS_SRC     ${PROJECT_SOURCE_DIR}/src/Static/BottomUpBreadthFirstSearch/BottomUpBFS.cu)
 file(GLOB_RECURSE BUTTERFLY_SRC ${PROJECT_SOURCE_DIR}/src/Static/butterfly/butterfly-bfs.cu)
 file(GLOB_RECURSE CC_SRCS       ${PROJECT_SOURCE_DIR}/src/Static/ConnectedComponents/CC.cu)
-#file(GLOB_RECURSE CLCOEFF_SRCS  ${PROJECT_SOURCE_DIR}/src/Static/ClusteringCoefficient/cc.cu)
+# file(GLOB_RECURSE CLCOEFF_SRCS  ${PROJECT_SOURCE_DIR}/src/Static/ClusteringCoefficient/cc.cu)
 file(GLOB_RECURSE SSSP_SRCS     ${PROJECT_SOURCE_DIR}/src/Static/ShortestPath/SSSP.cu)
 file(GLOB_RECURSE SPMV_SRCS     ${PROJECT_SOURCE_DIR}/src/Static/SpMV/SpMV.cu)
 file(GLOB_RECURSE PR_SRCS       ${PROJECT_SOURCE_DIR}/src/Static/PageRank/PageRank.cu)
@@ -55,7 +55,7 @@ add_executable(kcore        test/KCoreTest.cu)
 add_executable(ktruss       test/KTrussTest.cu)
 add_executable(triangle2    test/TriangleTest2.cu)
 add_executable(pr           test/PageRankTest.cu)
-add_executable(butterfly    test/butterfly-bfsTest.cu)
+add_executable(butterfly    test/butterfly-bfsTest.cu test/sort_impl.cuh)
 
 
 target_link_libraries(dummy         hornetAlg)
