@@ -236,7 +236,7 @@ int main(int argc, char* argv[]) {
 
 
                 printf("%s,",argv[1]);
-                printf("%ld,%ld,",graph.nV(),graph.nE());
+                printf("%ld,%ld,",nV,nE);
                 printf("%ld,",numGPUs);
                 printf("%ld,",logNumGPUs);        
                 printf("%ld,",fanout);
@@ -248,6 +248,9 @@ int main(int argc, char* argv[]) {
                 using HornetGraphPtr = HornetGraph*;
 
                 HornetGraphPtr hornetArray[numGPUs];
+                vert_t maxArrayDegree[numGPUs];
+                vert_t maxArrayId[numGPUs];
+
 
                 #pragma omp parallel
                 {      
@@ -256,16 +259,51 @@ int main(int argc, char* argv[]) {
 
                     h_SortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
 
-                    vert_t last_vertex;
-                    cudaMemcpy(&last_vertex,d_SortedSrc[thread_id]+h_SortedLengths[thread_id]-1,sizeof(vert_t), cudaMemcpyDeviceToHost); 
+                    vert_t first_vertex;
+                    cudaMemcpy(&first_vertex,d_SortedSrc[thread_id],sizeof(vert_t), cudaMemcpyDeviceToHost); 
+
+                    edgeSplits[thread_id] = first_vertex;
 
                     if(thread_id==0)
                         edgeSplits[0]=0;
-                    edgeSplits[thread_id+1] = last_vertex;
+                    if(thread_id==(numGPUs-1))
+                        edgeSplits[numGPUs] = nV;
 
+                #pragma omp barrier
+                    int64_t my_start,my_end;
+                    my_start  = edgeSplits[thread_id];
+                    my_end  = edgeSplits[thread_id+1];
+
+                    printf("\n!!!%ld %ld %ld %lld\n", thread_id,my_start,my_end,h_SortedLengths[thread_id]);
+                    fflush(stdout);
+
+                    // HornetInit hornet_init((vert_t)nV, (vert_t)my_edges, localOffset, edges);
+                    // HornetGraph hornet_graph(hornet_init);
+
+                    using UpdatePtr   = ::hornet::BatchUpdatePtr<vert_t, hornet::EMPTY, 
+                        hornet::DeviceType::DEVICE>;
+                    using Update      = ::hornet::gpu::BatchUpdate<vert_t>;
+
+                    UpdatePtr ptr(h_SortedLengths[thread_id], d_SortedSrc[thread_id], d_SortedDst[thread_id]);
+                    Update batch(ptr);
+
+                    hornetArray[thread_id] = new HornetGraph(nV+1);
+                    hornetArray[thread_id]->insert(batch);
+
+                    maxArrayDegree[thread_id]   = hornetArray[thread_id]->max_degree();
+                    maxArrayId[thread_id]       = hornetArray[thread_id]->max_degree_id();
                 }
 
-                root=startRoot;
+                vert_t max_d    = maxArrayDegree[0];
+                vert_t max_id   = maxArrayId[0];
+                for(int m=1;m<numGPUs; m++){
+                    if(max_d<maxArrayDegree[m]){
+                        max_d   = maxArrayDegree[m];
+                        max_id  = maxArrayId[m];
+                    }
+                }
+                printf("Root is %d\n",max_id);
+                root=max_id;
                 for(int64_t i=0; i<10; i++){
                     if(i>0){
                         root++;
@@ -282,26 +320,27 @@ int main(int argc, char* argv[]) {
                         my_start  = edgeSplits[thread_id];
                         my_end  = edgeSplits[thread_id+1];
 
-                        printf("%ld %ld %ld\n", thread_id,my_start,my_end);
-                        fflush(stdout);
+                        // printf("%ld %ld %ld\n", thread_id,my_start,my_end);
+                        // fflush(stdout);
 
-                        // HornetInit hornet_init((vert_t)nV, (vert_t)my_edges, localOffset, edges);
-                        // HornetGraph hornet_graph(hornet_init);
+                        // // HornetInit hornet_init((vert_t)nV, (vert_t)my_edges, localOffset, edges);
+                        // // HornetGraph hornet_graph(hornet_init);
 
-                        using UpdatePtr   = ::hornet::BatchUpdatePtr<vert_t, hornet::EMPTY, 
-                            hornet::DeviceType::DEVICE>;
-                        using Update      = ::hornet::gpu::BatchUpdate<vert_t>;
+                        // using UpdatePtr   = ::hornet::BatchUpdatePtr<vert_t, hornet::EMPTY, 
+                        //     hornet::DeviceType::DEVICE>;
+                        // using Update      = ::hornet::gpu::BatchUpdate<vert_t>;
 
-                        UpdatePtr ptr(h_SortedLengths[thread_id], d_SortedSrc[thread_id], d_SortedDst[thread_id]);
-                        Update batch(ptr);
+                        // UpdatePtr ptr(h_SortedLengths[thread_id], d_SortedSrc[thread_id], d_SortedDst[thread_id]);
+                        // Update batch(ptr);
 
-                        HornetGraph hornet_graph(nV+1);
-                        hornet_graph.insert(batch);
-                        hornetArray[thread_id] = new HornetGraph(nV+1);
-                        hornetArray[thread_id]->insert(batch);
-                        delete hornetArray[thread_id];
+                        // HornetGraph hornet_graph(nV+1);
+                        // hornet_graph.insert(batch);
+                        // hornetArray[thread_id] = new HornetGraph(nV+1);
+                        // hornetArray[thread_id]->insert(batch);
+                        // delete hornetArray[thread_id];
 
-                        butterfly bfs(hornet_graph,fanout);
+                        // butterfly bfs(hornet_graph,fanout);
+                        butterfly bfs(*hornetArray[thread_id],fanout);
 
                         #pragma omp barrier
                         if(thread_id==0){
@@ -398,6 +437,8 @@ int main(int argc, char* argv[]) {
                     cudaSetDevice(thread_id);
                     gpu::free(d_SortedSrc[thread_id]);  d_SortedSrc[thread_id] = nullptr;
                     gpu::free(d_SortedDst[thread_id]);  d_SortedDst[thread_id] = nullptr;
+
+                    delete hornetArray[thread_id];
 
                     #pragma omp barrier
                 }

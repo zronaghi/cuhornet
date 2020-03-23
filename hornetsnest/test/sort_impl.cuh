@@ -90,7 +90,7 @@ namespace cusort {
         Length_t startingPoint = sdSize * sizeof(Key_t);         
         Length_t sdSize2 =  startingPoint + sdSize * sizeof(Value_t);
 
-        printf("allocate asking for %ld bytes\n",cubDataSize + sdSize2); fflush(stdout);
+        // printf("allocate asking for %lld bytes\n",cubDataSize + sdSize2); fflush(stdout);
 
         gpu::allocate(buffer, cubDataSize + sdSize2);
 
@@ -115,7 +115,7 @@ namespace cusort {
 
       void free() {
 
-        printf("bufferdata free\n"); fflush(stdout);
+        // printf("bufferdata free\n"); fflush(stdout);
 
         if (buffer != nullptr){
           gpu::free(buffer);  buffer = nullptr;
@@ -165,7 +165,7 @@ namespace cusort {
           binsAligned +
           (1L << BIN_SCALE); // cubSmallBuffer;
 
-        printf("asking for %ld bytes\n",mallocSizeBytes);
+        // printf("asking for %lld bytes\n",mallocSizeBytes);
         gpu::allocate(buffer,mallocSizeBytes);
 
         int64_t pos = 0;
@@ -202,7 +202,7 @@ namespace cusort {
       }
 
       void free() {
-        printf("threaddata free\n"); fflush(stdout);
+        // printf("threaddata free\n"); fflush(stdout);
 
         if (buffer != nullptr){
           gpu::free(buffer);  buffer = nullptr;
@@ -235,7 +235,6 @@ namespace cusort {
       cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, tData[cpu_tid].d_input_keys, d_max, tData[cpu_tid].h_input_length);
 
       char* tempTemp;
-      printf("maxasking for %ld bytes\n",temp_storage_bytes);
 
       gpu::allocate(tempTemp, temp_storage_bytes);
       d_temp_storage = tempTemp;
