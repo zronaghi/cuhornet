@@ -202,7 +202,7 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
             bin_index = (MAX_ADJ_UNIONS_BINS/2)+(log_u*BINS_1D_DIM+log_v); 
         }
 
-        if(1){
+        if(0){
      // Either count or add the item to the appropriate queue position
             if (countOnly)
                 atomicAdd(&(d_queue_info.d_queue_sizes[bin_index]), 1ULL);
@@ -248,13 +248,12 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
 
 template<typename hornetDevice, typename T, typename Operator>
 __global__ void forAllEdgesAdjUnionImbalancedKernelSpGEMM(hornetDevice hornetDeviceA, 
-													hornetDevice hornetDeviceB, 
-													T* __restrict__ array, 
-													unsigned long long start, 
-													unsigned long long end, 
-													unsigned long long threads_per_union, 
-													int flag, 
-													Operator op) {
+													   hornetDevice hornetDeviceB, 
+													   T* __restrict__ array, 
+													   unsigned long long start, 
+													   unsigned long long end, 
+													   unsigned long long threads_per_union, 
+													   int flag, Operator op) {
 
 	// if (blockIdx.x==0)
 	// printf("%d %d\n,",threadIdx.x,array[threadIdx.x]);
@@ -286,7 +285,7 @@ __global__ void forAllEdgesAdjUnionImbalancedKernelSpGEMM(hornetDevice hornetDev
         // vid_t* u_nodes = hornet.vertex(u).neighbor_ptr();
         // vid_t* v_nodes = hornet.vertex(v).neighbor_ptr();
         vid_t *u_nodes, *v_nodes;
-        if(rowLen<colLen){
+        if(sourceSmaller){
             u_nodes = hornetDeviceA.vertex(u).neighbor_ptr();
             v_nodes = hornetDeviceB.vertex(v).neighbor_ptr();
         }else{
@@ -305,7 +304,7 @@ __global__ void forAllEdgesAdjUnionImbalancedKernelSpGEMM(hornetDevice hornetDev
 
         int flag2=flag;
         if (!sourceSmaller)
-            flag2=flag+2;
+            flag2 = flag+2;
 
         if (ui_end < u_len) {
             op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, v_nodes+vi_begin, v_nodes+vi_end, flag2);
@@ -323,7 +322,8 @@ void forAllEdgesAdjUnionImbalancedSpGEMM(HornetGraph &hornetA,
 								   		 const unsigned long long end, 
 								   		 const Operator &op,
 								    	 unsigned long long threads_per_union, 
-								   		 int flag) {
+								   		 int flag,
+								   		 cudaStream_t stream) {
     unsigned long long size = end - start; // end is exclusive
     auto grid_size = size*threads_per_union;
     auto _size = size;
@@ -336,7 +336,7 @@ void forAllEdgesAdjUnionImbalancedSpGEMM(HornetGraph &hornetA,
         return;
 
     forAllEdgesAdjUnionImbalancedKernelSpGEMM
-        <<< xlib::ceil_div<BLOCK_SIZE_OP2>(grid_size), BLOCK_SIZE_OP2 >>>
+        <<< xlib::ceil_div<BLOCK_SIZE_OP2>(grid_size), BLOCK_SIZE_OP2, 0, stream >>>
         (hornetA.device(), hornetB.device(), queue, start, end, threads_per_union, flag, op);
     CHECK_CUDA_ERROR
 }
@@ -406,7 +406,7 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
 		}
         if((FLAG&1)==0){
             int comp_equals, comp1, comp2, ui_bound, vi_bound;
-            printf("Intersecting %d, %d: %d -> %d, %d -> %d\n", u.id(), v.id(), *ui_begin, *ui_end, *vi_begin, *vi_end);
+            // printf("Intersecting %d, %d: %d -> %d, %d -> %d\n", u.id(), v.id(), *ui_begin, *ui_end, *vi_begin, *vi_end);
             while (vi_begin <= vi_end && ui_begin <= ui_end) {
                 comp_equals = (*ui_begin == *vi_begin);
                 count += comp_equals;
@@ -435,11 +435,14 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
                         count += 1;
                         break;
                     }
-                    if (comp > 0) {
-                        vi_high = vi_mid-1;
-                    } else if (comp < 0) {
-                        vi_low = vi_mid+1;
-                    }
+                    int geq=comp>1;
+                    vi_high = geq*(vi_mid-1);
+                    vi_low = (1-geq)*(vi_mid+1);
+                    // if (comp > 0) {
+                    //     vi_high = vi_mid-1;
+                    // } else if (comp < 0) {
+                    //     vi_low = vi_mid+1;
+                    // }
                 }
                 ui_begin += 1;
             }
@@ -466,6 +469,10 @@ void forAllAdjUnions(HornetGraph&    hornetA,
 
     //using BinEdges = bin_edges<typename HornetGraph::VertexType>;
     //HostDeviceVar<queue_info<typename HornetGraph::VertexType>> hd_queue_info_spgemm;
+    cudaStream_t streams[32];
+    for(int i=0;i<32; i++)
+      cudaStreamCreate ( &(streams[i]));
+
     queue_info_spgemm<typename HornetGraph::VertexType> hd_queue_info_spgemm;
     load_balancing::VertexBased1 load_balancing ( hornetA );
 
@@ -478,6 +485,9 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     hornets_nest::gpu::memsetZero(hd_queue_info_spgemm.d_queue_pos, MAX_ADJ_UNIONS_BINS+1);
     unsigned long long *queue_pos = (unsigned long long *)calloc(MAX_ADJ_UNIONS_BINS+1, sizeof(unsigned long long));
 
+    triangle_t* d_IntersectCount;
+    gpu::allocate(d_IntersectCount, hornetA.nV()*hornetA.nV());
+    cudaMemset(d_IntersectCount, 0, hornetA.nV()*hornetA.nV()*sizeof(triangle_t));
     // figure out cutoffs/counts per bin
     // if (vertex_pairs.size())
     //     forAllVertexPairs(hornet, vertex_pairs, BinEdges {hd_queue_info_spgemm, true, WORK_FACTOR});
@@ -487,7 +497,11 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     const int BLOCK_SIZE = 32;
 	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
     dim3 dimGrid(hornetB.nV()/dimBlock.x + ((hornetB.nV()%dimBlock.x)?1:0), hornetA.nV()/dimBlock.y + ((hornetA.nV()%dimBlock.y)?1:0));
+    printf("%d %d\n", dimGrid.x, dimGrid.y);
+    printf("%d %d\n", dimBlock.x, dimBlock.y);
     bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<dimGrid,dimBlock>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, true, 100);
+	// CHECK_CUDA_ERROR
+	// printf("passed 1");
 
     // printf("%d, %d \n", dimGrid.x, dimGrid.y);
     // printf("%d, %d \n", hornetA.nV(), hornetB.nV());
@@ -510,6 +524,8 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     // else
     //forAllEdgeVertexPairs(hornet, BinEdges {hd_queue_info_spgemm, false, WORK_FACTOR}, load_balancing);
     bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<dimGrid,dimBlock>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, false, 100);
+	// CHECK_CUDA_ERROR
+	// printf("passed 2");
 
     const int BALANCED_THREADS_LOGMAX = 31-__builtin_clz(BLOCK_SIZE_OP2)+1; // assumes BLOCK_SIZE is int type
     int bin_index;
@@ -529,7 +545,8 @@ void forAllAdjUnions(HornetGraph&    hornetA,
         if (size) {
             threads_per = 1 << (threads_log-1); 
             ////ToDo
-            //forAllEdgesAdjUnionBalanced(hornet, hd_queue_info_spgemm.d_edge_queue, start_index, end_index, op, threads_per, 0);
+            // forAllEdgesAdjUnionBalancedSpGEMM(hornetA, hornetB, hd_queue_info_spgemm.d_edge_queue, start_index, end_index, 
+            //                                   OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, threads_per, 0);
         }
         start_index = end_index;
         threads_log += 1;
@@ -541,17 +558,18 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     if (size) {
         threads_per = 1 << (threads_log-1); 
         ////ToDo
-        //forAllEdgesAdjUnionBalanced(hornet, hd_queue_info_spgemm().d_edge_queue, start_index, end_index, op, threads_per, 0);
+        // forAllEdgesAdjUnionBalancedSpGEMM(hornetA, hornetB, hd_queue_info_spgemm.d_edge_queue, start_index, end_index, 
+        //                                   OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, threads_per, 0);
     }
     start_index = end_index;
-
-    triangle_t* d_IntersectCount;
-    gpu::allocate(d_IntersectCount, hornetA.nV()*hornetA.nV());
 
     // imbalanced kernel
     const int IMBALANCED_THREADS_LOGMAX = BINS_1D_DIM-1; 
     bin_offset = MAX_ADJ_UNIONS_BINS/2;
     threads_log = 1;
+    threads_per = 1;
+
+    int streamCounter=0;
     // printf("\n");
     while ((threads_log < IMBALANCED_THREADS_LOGMAX) && (threads_log+LOG_OFFSET_IMBALANCED < BINS_1D_DIM)) 
     {
@@ -560,18 +578,23 @@ void forAllAdjUnions(HornetGraph&    hornetA,
         size = end_index - start_index;
         // printf("%llu \n", size);
         if (size) {
-            threads_per = 1 << (threads_log-1);
+            // threads_per = 1 << (threads_log-1);
             //triangle_t* tempstupid;
             ////ToDo 
             forAllEdgesAdjUnionImbalancedSpGEMM(hornetA, hornetB, 
 								   		 hd_queue_info_spgemm.d_edge_queue,
 								   		 start_index, end_index, 
 								   		 OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, 
-								    	 threads_per, 1);
+								    	 threads_per, 1, streams[streamCounter++]);
             //forAllEdgesAdjUnionImbalancedSpGEMM(hornetA, hornetB, /*(vid_t*) hd_queue_info_spgemm().d_edge_queue,*/ start_index, end_index, OPERATOR_AdjIntersectionCountBalanced {(triangle_t*) NULL}, threads_per, 1);
         }
         start_index = end_index;
+        // threads_log += 1;
         threads_log += 1;
+        if(threads_log > 4)
+            threads_per=2;
+        if(threads_log > 8)
+            threads_per=8;
     }
     // process remaining "tail" bins
     bin_index = MAX_ADJ_UNIONS_BINS;
@@ -584,14 +607,16 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                                          hd_queue_info_spgemm.d_edge_queue,
                                          start_index, end_index, 
                                          OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, 
-                                         threads_per, 1); 
+                                         threads_per, 1, streams[streamCounter++]); 
         //forAllEdgesAdjUnionImbalanced(hornet, hd_queue_info_spgemm().d_edge_queue, start_index, end_index, op, threads_per, 1);
     }
 
-    hornets_nest::gpu::free(hd_queue_info_spgemm.d_queue_pos, hd_queue_info_spgemm.d_queue_sizes, hd_queue_info_spgemm.d_edge_queue);
+    hornets_nest::gpu::free(hd_queue_info_spgemm.d_queue_pos); 
+    hornets_nest::gpu::free(hd_queue_info_spgemm.d_queue_sizes);
+    hornets_nest::gpu::free(hd_queue_info_spgemm.d_edge_queue);
     
     cudaDeviceSynchronize();
-    if (false){
+    if (true){
 	    triangle_t* h_IntersectCount;
 	    host::allocate(h_IntersectCount, hornetA.nV()*hornetA.nV());
 	    cudaMemcpy(h_IntersectCount, d_IntersectCount, hornetA.nV()*hornetA.nV()*sizeof (triangle_t), cudaMemcpyDeviceToHost);
@@ -599,7 +624,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
 	    triangle_t sum_row=0;
 	    for (int i=0; i<hornetA.nV()*hornetA.nV(); i++){
 	    	if (i<hornetA.nV()){
-	    		printf ("%llu", h_IntersectCount[i]);
+	    		printf ("%d", h_IntersectCount[i]);
 	    		sum_row += h_IntersectCount[i];
 	    	}
 	        if (h_IntersectCount[i] != 0){
@@ -607,7 +632,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
 	        	NNZ++;
 	        }
 	    }
-	    printf("sum_row = %llu \n", sum_row);
+	    printf("sum_row = %d \n", sum_row);
 	    cudaDeviceSynchronize();
 	    printf("NNZ = %d \n", NNZ);
 
@@ -618,6 +643,9 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     threads_per = threads_per+1;
     free(queue_sizes);
     free(queue_pos);
+
+    for(int i=0;i<32; i++)
+      cudaStreamDestroy ( streams[i]);
 }
 
 // template<typename HornetGraph>

@@ -6,7 +6,8 @@
 namespace hornets_nest {
 
 //using triangle_t = int;
-using triangle_t = unsigned long long;
+// using triangle_t = unsigned long long;
+using triangle_t = int32_t;
 using vid_t = int;
 
 using HornetGraph = ::hornet::gpu::Hornet<vid_t>;
