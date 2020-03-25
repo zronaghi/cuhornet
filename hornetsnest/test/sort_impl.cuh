@@ -27,9 +27,10 @@
 #include <cub/device/device_radix_sort.cuh>
 #include <cub/util_allocator.cuh>
 
-#include <thrust/sort.h>
-#include <thrust/for_each.h>
-#include <thrust/execution_policy.h>
+// #include <thrust/sort.h>
+// #include <thrust/for_each.h>
+// #include <thrust/execution_policy.h>
+
 
 using namespace hornets_nest;
 
@@ -92,7 +93,9 @@ namespace cusort {
 
         // printf("allocate asking for %lld bytes\n",cubDataSize + sdSize2); fflush(stdout);
 
-        gpu::allocate(buffer, cubDataSize + sdSize2);
+        cudaMalloc(&buffer, cubDataSize + sdSize2);
+
+        // gpu::allocate(buffer, cubDataSize + sdSize2);
 
         d_keys = (Key_t *) buffer;
         d_vals = (Value_t *) (buffer + startingPoint);
@@ -104,7 +107,8 @@ namespace cusort {
         Length_t cubDataSize = ((cubData + MEM_ALIGN - 1) / MEM_ALIGN) * MEM_ALIGN;
         Length_t sdSize = ((len + MEM_ALIGN - 1) / MEM_ALIGN) * MEM_ALIGN;
         Length_t startingPoint = sdSize * sizeof(Key_t);         
-        gpu::allocate(buffer, cubDataSize + startingPoint);
+        // gpu::allocate(buffer, cubDataSize + startingPoint);
+        cudaMalloc(&buffer, cubDataSize + startingPoint);
 
         d_keys = (Key_t *) buffer;
         cubBuffer = buffer + startingPoint;
@@ -118,7 +122,7 @@ namespace cusort {
         // printf("bufferdata free\n"); fflush(stdout);
 
         if (buffer != nullptr){
-          gpu::free(buffer);  buffer = nullptr;
+          cudaFree(buffer);  buffer = nullptr;
         }
       }
     };
@@ -166,7 +170,8 @@ namespace cusort {
           (1L << BIN_SCALE); // cubSmallBuffer;
 
         // printf("asking for %lld bytes\n",mallocSizeBytes);
-        gpu::allocate(buffer,mallocSizeBytes);
+        // gpu::allocate(buffer,mallocSizeBytes);
+        cudaMalloc(&buffer,mallocSizeBytes);
 
         int64_t pos = 0;
 
@@ -205,7 +210,7 @@ namespace cusort {
         // printf("threaddata free\n"); fflush(stdout);
 
         if (buffer != nullptr){
-          gpu::free(buffer);  buffer = nullptr;
+          cudaFree(buffer);  buffer = nullptr;
         }
         delete [] h_binSizes;
         delete [] h_binPrefix;
@@ -235,21 +240,24 @@ namespace cusort {
       cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, tData[cpu_tid].d_input_keys, d_max, tData[cpu_tid].h_input_length);
 
       char* tempTemp;
-
-      gpu::allocate(tempTemp, temp_storage_bytes);
+      cudaMalloc(&tempTemp,temp_storage_bytes);
+      // gpu::allocate(tempTemp, temp_storage_bytes);
       d_temp_storage = tempTemp;
       cub::DeviceReduce::Max(d_temp_storage, temp_storage_bytes, tData[cpu_tid].d_input_keys, d_max, tData[cpu_tid].h_input_length);
 
-      thrust::for_each_n(thrust::device,
-                         d_max, 1,
-                         [d_max] __device__ (Key_t &val) {
-                           d_max[0] = detail::CountLeadingZeros<Key_t, sizeof(Key_t)>()(d_max[0]);
-                         });
+      // thrust::for_each_n(thrust::device,
+      //                    d_max, 1,
+      //                    [d_max] __device__ (Key_t &val) {
+      //                      d_max[0] = detail::CountLeadingZeros<Key_t, sizeof(Key_t)>()(d_max[0]);
+      //                    });
 
       cudaMemcpy(h_max_key + cpu_tid, d_max, sizeof(Key_t), cudaMemcpyDeviceToHost);
 
+      // h_max_key[cpu_tid] = (Key_t)(_lzcnt_u32((unsigned int) h_max_key[cpu_tid]));
+      h_max_key[cpu_tid] = (Key_t)(__builtin_clz((unsigned int) h_max_key[cpu_tid]));
+
       if(d_temp_storage!=nullptr){
-      	gpu::free(d_temp_storage); d_temp_storage=nullptr;
+      	cudaFree(d_temp_storage); d_temp_storage=nullptr;
       }
 
 #pragma omp barrier
@@ -426,10 +434,15 @@ namespace cusort {
            num_gpus);
       }
 
-      gpu::allocate(tData[cpu_tid].d_output_keys, tData[cpu_tid].h_output_length);
+      // gpu::allocate(tData[cpu_tid].d_output_keys, tData[cpu_tid].h_output_length);
+
+      // if (!keys_only)
+      //   gpu::allocate(tData[cpu_tid].d_output_values, tData[cpu_tid].h_output_length);
+
+      cudaMalloc(&tData[cpu_tid].d_output_keys, tData[cpu_tid].h_output_length*sizeof(Key_t));
 
       if (!keys_only)
-        gpu::allocate(tData[cpu_tid].d_output_values, tData[cpu_tid].h_output_length);
+        cudaMalloc(&tData[cpu_tid].d_output_values, tData[cpu_tid].h_output_length*sizeof(Value_t));
 
       //
       //  Need all partition labeling to complete before we start copying data

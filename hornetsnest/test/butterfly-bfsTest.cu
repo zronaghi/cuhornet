@@ -115,7 +115,8 @@ int main(int argc, char* argv[]) {
     omp_set_num_threads(maxGPUs);
     hornets_nest::gpu::initializeRMMPoolAllocation(0,maxGPUs);//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
 
-
+    cudaSetDevice(0);
+    
     #pragma omp parallel
     {      
         int64_t thread_id = omp_get_thread_num ();
@@ -181,8 +182,10 @@ int main(int argc, char* argv[]) {
                 {      
                     int64_t thread_id = omp_get_thread_num ();
                     cudaSetDevice(thread_id);
-                    gpu::allocate(d_unSortedSrc[thread_id],edgesPerGPU);
-                    gpu::allocate(d_unSortedDst[thread_id],edgesPerGPU);
+                    cudaMalloc(&d_unSortedSrc[thread_id],sizeof(vertPtr)*edgesPerGPU);
+                    cudaMalloc(&d_unSortedDst[thread_id],sizeof(vertPtr)*edgesPerGPU);
+                    // gpu::allocate(d_unSortedSrc[thread_id],edgesPerGPU);
+                    // gpu::allocate(d_unSortedDst[thread_id],edgesPerGPU);
 
                     int64_t startEdge = thread_id*edgesPerGPU;
                     int64_t stopEdge  = (thread_id+1)*edgesPerGPU;
@@ -203,17 +206,18 @@ int main(int argc, char* argv[]) {
                 cusort::sort_key_value(d_unSortedDst,d_unSortedSrc,h_unSortedOffsets,
                               d_SortedDst,d_SortedSrc,h_SortedOffsets, (int)numGPUs);
                 omp_set_num_threads(numGPUs);
+                cudaSetDevice(0);
 
                 #pragma omp parallel
                 {      
                     int64_t thread_id = omp_get_thread_num ();
                     cudaSetDevice(thread_id);
 
-                    gpu::free(d_unSortedSrc[thread_id]);
+                    cudaFree(d_unSortedSrc[thread_id]);
                     d_unSortedSrc[thread_id] = d_SortedSrc[thread_id];
                     d_SortedSrc[thread_id] = nullptr;
 
-                    gpu::free(d_unSortedDst[thread_id]);
+                    cudaFree(d_unSortedDst[thread_id]);
                     d_unSortedDst[thread_id] = d_SortedDst[thread_id];
                     d_SortedDst[thread_id] = nullptr;
                     h_unSortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
@@ -223,6 +227,7 @@ int main(int argc, char* argv[]) {
                 cudaSetDevice(0);
                 cusort::sort_key_value(d_unSortedSrc,d_unSortedDst,h_unSortedOffsets,
                               d_SortedSrc,d_SortedDst,h_SortedOffsets, (int)numGPUs);
+                cudaSetDevice(0);
                 // printf("\n");
                 // for(int i=0; i<numGPUs; i++){
                 //     printf("%d, ", h_unSortedOffsets[i+1]-h_unSortedOffsets[i]);
@@ -232,6 +237,8 @@ int main(int argc, char* argv[]) {
                 //     printf("%d, ", h_unSortedOffsets[i]);
                 // }
                 // printf("\n");
+                cudaSetDevice(0);
+
                 omp_set_num_threads(numGPUs);
 
 
@@ -258,6 +265,9 @@ int main(int argc, char* argv[]) {
                     cudaSetDevice(thread_id);
 
                     h_SortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
+
+                    gpu::free(d_unSortedSrc[thread_id]);  d_unSortedSrc[thread_id] = nullptr;
+                    gpu::free(d_unSortedDst[thread_id]);  d_unSortedDst[thread_id] = nullptr;
 
                     vert_t first_vertex;
                     cudaMemcpy(&first_vertex,d_SortedSrc[thread_id],sizeof(vert_t), cudaMemcpyDeviceToHost); 
@@ -292,6 +302,12 @@ int main(int argc, char* argv[]) {
 
                     maxArrayDegree[thread_id]   = hornetArray[thread_id]->max_degree();
                     maxArrayId[thread_id]       = hornetArray[thread_id]->max_degree_id();
+
+                #pragma omp barrier
+
+                    gpu::free(d_SortedSrc[thread_id]);  d_SortedSrc[thread_id] = nullptr;
+                    gpu::free(d_SortedDst[thread_id]);  d_SortedDst[thread_id] = nullptr;
+
                 }
 
                 vert_t max_d    = maxArrayDegree[0];
@@ -319,25 +335,6 @@ int main(int argc, char* argv[]) {
                         int64_t my_start,my_end;
                         my_start  = edgeSplits[thread_id];
                         my_end  = edgeSplits[thread_id+1];
-
-                        // printf("%ld %ld %ld\n", thread_id,my_start,my_end);
-                        // fflush(stdout);
-
-                        // // HornetInit hornet_init((vert_t)nV, (vert_t)my_edges, localOffset, edges);
-                        // // HornetGraph hornet_graph(hornet_init);
-
-                        // using UpdatePtr   = ::hornet::BatchUpdatePtr<vert_t, hornet::EMPTY, 
-                        //     hornet::DeviceType::DEVICE>;
-                        // using Update      = ::hornet::gpu::BatchUpdate<vert_t>;
-
-                        // UpdatePtr ptr(h_SortedLengths[thread_id], d_SortedSrc[thread_id], d_SortedDst[thread_id]);
-                        // Update batch(ptr);
-
-                        // HornetGraph hornet_graph(nV+1);
-                        // hornet_graph.insert(batch);
-                        // hornetArray[thread_id] = new HornetGraph(nV+1);
-                        // hornetArray[thread_id]->insert(batch);
-                        // delete hornetArray[thread_id];
 
                         // butterfly bfs(hornet_graph,fanout);
                         butterfly bfs(*hornetArray[thread_id],fanout);
@@ -435,8 +432,6 @@ int main(int argc, char* argv[]) {
                 {      
                     int64_t thread_id = omp_get_thread_num ();
                     cudaSetDevice(thread_id);
-                    gpu::free(d_SortedSrc[thread_id]);  d_SortedSrc[thread_id] = nullptr;
-                    gpu::free(d_SortedDst[thread_id]);  d_SortedDst[thread_id] = nullptr;
 
                     delete hornetArray[thread_id];
 
