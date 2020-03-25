@@ -6,6 +6,7 @@
 
 namespace hornets_nest {
 
+using vert_t = int;
 using HornetInit  = ::hornet::HornetInit<vert_t>;
 using HornetGraph = ::hornet::gpu::Hornet<vert_t>;
 // using HornetGraph = ::hornet::gpu::HornetStatic<vert_t>;
