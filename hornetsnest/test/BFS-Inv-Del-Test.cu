@@ -80,30 +80,39 @@ int exec(int argc, char* argv[]) {
 
     Timer<DEVICE> TM;
 
+    HornetGraph hornet_graph(hornet_init);
+    ReverseDeleteBFS rev_del_bfs(hornet_graph, hornet_graph_inv, 
+                                 graph.csr_out_offsets(),graph.csr_in_offsets());
+    rev_del_bfs.sortHornets(hornet_graph_inv);
+    rev_del_bfs.sortHornets(hornet_graph);
+    rev_del_bfs.SetInverseIndices(hornet_graph_inv);            
+
+
+
     for (int i=0; i<numberRoots;i++){
-        HornetGraph hornet_graph(hornet_init);
-        ReverseDeleteBFS rev_del_bfs(hornet_graph, hornet_graph_inv);
+        // HornetGraph hornet_graph(hornet_init);
+        // ReverseDeleteBFS rev_del_bfs(hornet_graph, hornet_graph_inv);
         rev_del_bfs.reset();
 
         if(deletion!=0){
             // rev_del_bfs.sortHornets(hornet_graph_inv);
-            if(i==0){
-                rev_del_bfs.sortHornets(hornet_graph_inv);
-            }
+            // if(i==0){
+            //     rev_del_bfs.sortHornets(hornet_graph_inv);
+            //     rev_del_bfs.sortHornets(hornet_graph);
+            // }
 
-            rev_del_bfs.sortHornets(hornet_graph);
-            rev_del_bfs.SetInverseIndices(hornet_graph_inv);            
+            // rev_del_bfs.SetInverseIndices(hornet_graph_inv);            
         }
 
         // cudaProfilerStart();
         TM.start();
-            // rev_del_bfs.set_parameters((root+i)%graph.nV());
-            // if(deletion==0){
-            //     rev_del_bfs.run(hornet_graph_inv,alg,timeSection);
-            // }
-            // else{
-            //     rev_del_bfs.runNoDelete(hornet_graph_inv,alg,timeSection);
-            // }
+            rev_del_bfs.set_parameters((root+i)%graph.nV());
+            if(deletion==0){
+                rev_del_bfs.run(hornet_graph_inv,alg,timeSection);
+            }
+            else{
+                rev_del_bfs.runNoDelete(hornet_graph_inv,alg,timeSection);
+            }
 
         TM.stop();
         // printf("duration %f\n",TM.duration());
@@ -116,6 +125,16 @@ int exec(int argc, char* argv[]) {
     }
 
     printf("\nReverse BFS time: %f ms\n",totalTime);
+
+    int N=graph.nE();
+    vid_t* d_temp;
+    gpu::allocate(d_temp,N);
+    TM.start();
+    for (int i=0; i<5000; i++){
+        cudaMemset(d_temp,0,sizeof(vid_t)*N);
+    }
+    TM.stop();
+    gpu::free(d_temp);
 
     // TM.print("Reverse BFS");
 

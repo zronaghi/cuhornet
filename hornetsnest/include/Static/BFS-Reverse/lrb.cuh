@@ -107,21 +107,27 @@ __global__ void BFSTopDown_One_Iter_kernel(
     k+=start;
 
     vid_t src = bfs().d_lrbRelabled[k];
-    degree_t currLevel = bfs().currLevel;
+    // degree_t currLevel = bfs().currLevel;
+    auto pos = bfs().d_offset[src];
+
 
     vid_t* neighPtr = hornet.vertex(src).neighbor_ptr();
     int length = hornet.vertex(src).degree();
 
     for (int i=0; i<length; i++) {
-       if(onlyNonDeleted){
-            if(hornet.vertex(src).edge(i).template field<0>()==1)
-                continue;
+      if(onlyNonDeleted){
+          if(bfs().d_deletionSet[pos+i]==1)
+            continue;
+
+            // if(hornet.vertex(src).edge(i).template field<0>()==1)
+            //     continue;
        }
        vid_t dst_id = neighPtr[i]; 
 
         if(d_found[dst_id] == 0){
             if (atomicCAS(d_found + dst_id, 0, 1) == 0) {
                 queue.insert(dst_id);
+         
             }
         }
     }
@@ -144,6 +150,8 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
     k+=start;    
 
     vid_t src = bfs().d_lrbRelabled[k];
+    auto pos = bfs().d_offset[src];
+
     degree_t currLevel = bfs().currLevel;
 
     vid_t* neighPtr = hornet.vertex(src).neighbor_ptr();
@@ -152,8 +160,11 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
     for (int i=tid; i<length; i+=blockDim.x) {
 
        if(onlyNonDeleted){
-            if(hornet.vertex(src).edge(i).template field<0>()==1)
-                continue;
+          if(bfs().d_deletionSet[pos+i]==1)
+            continue;
+
+            // if(hornet.vertex(src).edge(i).template field<0>()==1)
+            //     continue;
        }
 
        vid_t dst_id = neighPtr[i]; 
@@ -210,22 +221,28 @@ template<typename HornetDevice>
 __global__ void inverseIndexCreation(
   HornetDevice inverseHornet , 
   HornetDevice originalHornet , 
+  HostDeviceVar<invBFSData> bfs, 
   int N){
     int k = threadIdx.x + blockIdx.x *blockDim.x;
     if(k>=N)
         return;
 
     auto ivk = inverseHornet.vertex(k);
+    auto pos = bfs().d_offsetInv[k];
+
     vid_t* neighPtr = ivk.neighbor_ptr();
     int length      = ivk.degree();
-    auto nPtr = ivk.neighbor_ptr();
+    auto nPtr = ivk.neighbor_ptr();    
+
     for (int i=0; i<length; i++) {
 
        auto myEdge = ivk.edge(i);
        // vid_t eid = ivk.neighbor_ptr()[i];
        vid_t eid = nPtr[i];
 
-       myEdge.template field<0>() = binarySearch (originalHornet.vertex(eid).neighbor_ptr(), 0, originalHornet.vertex(eid).degree(),k );
+       auto binRes = binarySearch (originalHornet.vertex(eid).neighbor_ptr(), 0, originalHornet.vertex(eid).degree(),k );
+       // myEdge.template field<0>() = binRes;
+       bfs().d_deletionIndexInv[pos+i] = binRes;
     }
 }
 
@@ -234,6 +251,7 @@ __global__ void inverseIndexDeleteFat(
   const vid_t* currentFrontier,
   HornetDevice inverseHornet , 
   HornetDevice originalHornet , 
+  HostDeviceVar<invBFSData> bfs, 
   int N, 
   int start){
 
@@ -243,9 +261,9 @@ __global__ void inverseIndexDeleteFat(
         return;
     }
     k+=start;    
-
-
     vid_t src = currentFrontier[k];
+
+    auto posSrcInv   = bfs().d_offsetInv[src];
 
     auto ivSrc = inverseHornet.vertex(src);
 
@@ -254,8 +272,14 @@ __global__ void inverseIndexDeleteFat(
 
     for (int i=tid; i<length; i+=blockDim.x) {
         vid_t dest = neighPtr[i];
-        vid_t index = ivSrc.edge(i). template field<0>() ;
-        originalHornet.vertex(dest).edge(index).template field<0> () = 1;
+        // vid_t index = ivSrc.edge(i). template field<0>() ;
+        vid_t index = bfs().d_deletionIndexInv[posSrcInv+i];
+
+        auto posDestOrig = bfs().d_offset[dest];
+
+        bfs().d_deletionSet[posDestOrig+index]=1;
+
+        // originalHornet.vertex(dest).edge(index).template field<0> () = 1;
     }
 }
 
@@ -264,6 +288,7 @@ __global__ void inverseIndexDelete(
   const vid_t* currentFrontier,
   HornetDevice inverseHornet , 
   HornetDevice originalHornet , 
+  HostDeviceVar<invBFSData> bfs, 
   int N, 
   int start){
     int k = threadIdx.x + blockIdx.x *blockDim.x;
@@ -272,6 +297,7 @@ __global__ void inverseIndexDelete(
     k+=start;
 
     vid_t src = currentFrontier[k];
+    auto posSrcInv   = bfs().d_offsetInv[src];
 
     auto ivSrc = inverseHornet.vertex(src);
 
@@ -280,8 +306,14 @@ __global__ void inverseIndexDelete(
 
     for (int i=0; i<length; i++) {
         vid_t dest = neighPtr[i];
-        vid_t index = ivSrc.edge(i). template field<0>() ;
-        originalHornet.vertex(dest).edge(index).template field<0> () = 1;
+        // vid_t index = ivSrc.edge(i). template field<0>() ;
+
+        vid_t index = bfs().d_deletionIndexInv[posSrcInv+i];
+        auto posDestOrig = bfs().d_offset[dest];
+        bfs().d_deletionSet[posDestOrig+index]=1;
+
+
+        // originalHornet.vertex(dest).edge(index).template field<0> () = 1;
     }
 }
 
