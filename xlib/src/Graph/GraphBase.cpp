@@ -129,7 +129,8 @@ inline void GraphBase<vid_t, eoff_t>
 
 template<typename vid_t, typename eoff_t>
 void GraphBase<vid_t, eoff_t>::read(const char* filename,               //NOLINT
-                                    const ParsingProp& prop) {          //NOLINT
+                                    const ParsingProp& prop,            //NOLINT
+                                    bool returnCOO) {
     xlib::check_regular_file(filename);
     size_t size = xlib::file_size(filename);
     _graph_name = xlib::extract_filename(filename);
@@ -204,7 +205,9 @@ void GraphBase<vid_t, eoff_t>::read(const char* filename,               //NOLINT
     } else
         ERROR("Graph type not recognized");
     fin.close();
-    COOtoCSR();
+    if (!returnCOO){
+        COOtoCSR();
+    }
 }
 
 //==============================================================================

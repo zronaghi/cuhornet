@@ -40,6 +40,8 @@
 #include <sstream>                    //std::istringstream
 #include <vector>                     //std::vector
 
+#include <omp.h>
+
 namespace graph {
 
 template<typename vid_t, typename eoff_t>
@@ -187,11 +189,12 @@ void GraphStd<vid_t, eoff_t>::readSnap(std::ifstream& fin, bool print) {
     while (fin.peek() == '#')
         xlib::skip_lines(fin);
 
-    xlib::UniqueMap<vid_t, vid_t> map;
+    // xlib::UniqueMap<vid_t, vid_t> map;
     for (size_t lines = 0; lines < ginfo.num_lines; lines++) {
         vid_t v1, v2;
         fin >> v1 >> v2;
-        _coo_edges[lines] = { map.insert(v1), map.insert(v2) };
+        // _coo_edges[lines] = { map.insert(v1), map.insert(v2) };
+        _coo_edges[lines] = { v1, v2 };
         if (print)
             progress.next(lines);
     }
