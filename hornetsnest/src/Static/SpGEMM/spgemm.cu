@@ -175,16 +175,27 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
                                         queue_info_spgemm<vid_t> d_queue_info,
                                         bool countOnly, const int WORK_FACTOR) {
 
-        int bin_index;
-        vid_t row = blockIdx.y * blockDim.y + threadIdx.y;
-        vid_t col = blockIdx.x * blockDim.x + threadIdx.x;
-        if (row >= hornetDeviceA.nV() || col >= hornetDeviceB.nV()) return;
-        //     // Choose the bin to place this edge into
-        degree_t row_len = hornetDeviceA.vertex(row).degree();
-        degree_t col_len = hornetDeviceB.vertex(col).degree();
+    int bin_index;
+    vid_t row = blockIdx.x * blockDim.x + threadIdx.x;
+    //vid_t col = blockIdx.x * blockDim.x + threadIdx.x;
+        // if (row >= hornetDeviceA.nV() || col >= hornetDeviceB.nV()) return;
+    if (row >= hornetDeviceA.nV()) return;
+    //     // Choose the bin to place this edge into
+    degree_t row_len = hornetDeviceA.vertex(row).degree();
 
-        //degree_t u_len = (row_len <= col_len) ? src_len : dst_len;
-        //degree_t v_len = (row_len <= col_len) ? dst_len : src_len;
+    __shared__ int32_t localBins[MAX_ADJ_UNIONS_BINS];
+    __shared__ int32_t localPos[MAX_ADJ_UNIONS_BINS];
+    int tid =  threadIdx.x; //+ blockDim.x*threadIdx.y;
+    int stride = blockDim.x;
+    for (int tid2= tid; tid2<MAX_ADJ_UNIONS_BINS; tid2+=stride){
+      localBins[tid2]=0;
+      localPos[tid2] =0;
+    }
+    __syncthreads();
+
+    for (vid_t col = tid; col < hornetDeviceB.nV(); col += stride){
+
+        degree_t col_len = hornetDeviceB.vertex(col).degree();
 
         degree_t u_len = row_len;
         degree_t v_len = col_len;
@@ -202,48 +213,52 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
             bin_index = (MAX_ADJ_UNIONS_BINS/2)+(log_u*BINS_1D_DIM+log_v); 
         }
 
-        if(0){
-     // Either count or add the item to the appropriate queue position
-            if (countOnly)
-                atomicAdd(&(d_queue_info.d_queue_sizes[bin_index]), 1ULL);
-            else {
-                unsigned long long id = atomicAdd(&(d_queue_info.d_queue_pos[bin_index]), 1ULL);
-                d_queue_info.d_edge_queue[id*2] = row;
-                d_queue_info.d_edge_queue[id*2+1] = col;
+        atomicAdd(localBins + bin_index, 1ULL);
+    }
+
+    __syncthreads();
+
+    for (int tid2= tid; tid2<MAX_ADJ_UNIONS_BINS; tid2+=stride){
+        if(localBins [tid2] == 0)
+            continue;
+        if(countOnly){
+            atomicAdd(&(d_queue_info.d_queue_sizes[tid2]), localBins [tid2]);
+        }
+        else {
+            localPos[tid2]=atomicAdd(&(d_queue_info.d_queue_pos[tid2]), localBins[tid2]);
+        }
+    }
+    __syncthreads();
+
+    if(countOnly){
+        return;
+    }
+    else {
+        for (vid_t col = tid; col < hornetDeviceB.nV(); col += stride){
+
+            degree_t col_len = hornetDeviceB.vertex(col).degree();
+
+            degree_t u_len = row_len;
+            degree_t v_len = col_len;
+            unsigned int log_v = std::min(32-__clz(v_len), 31);
+            unsigned int log_u = std::min(32-__clz(u_len), 31);
+            int binary_work_est = u_len*log_v;
+            int intersect_work_est = u_len + v_len + log_u;
+            int METHOD = ((WORK_FACTOR*intersect_work_est >= binary_work_est));
+            //// METHOD == 0 is binary search, METHOD == 1 intersection 
+            if ( METHOD == 0 && u_len <= 1) {
+                bin_index = 0;
+            } else if (METHOD == 0) {
+                bin_index = (log_v*BINS_1D_DIM+log_u);
+            } else {
+                bin_index = (MAX_ADJ_UNIONS_BINS/2)+(log_u*BINS_1D_DIM+log_v); 
             }
-
-        }else{
-            __shared__ int32_t localBins[MAX_ADJ_UNIONS_BINS];
-            __shared__ int32_t localPos[MAX_ADJ_UNIONS_BINS];
-            int tid =  threadIdx.x + blockDim.x*threadIdx.y;
-            int stride = blockDim.y*blockDim.x;
-            for (int tid2= tid; tid2<MAX_ADJ_UNIONS_BINS; tid2+=stride){
-              localBins[tid2]=0;
-              localPos[tid2] =0;
-            }
-            __syncthreads();
-
-            atomicAdd(localBins + bin_index, 1ULL);
-            __syncthreads();
-
-            for (int tid2= tid; tid2<MAX_ADJ_UNIONS_BINS; tid2+=stride){
-                if(localBins [tid2] == 0)
-                    continue;
-                if(countOnly){
-                    atomicAdd(&(d_queue_info.d_queue_sizes[tid2]), localBins [tid2]);
-                }
-                else {
-                    localPos[tid2]=atomicAdd(&(d_queue_info.d_queue_pos[tid2]), localBins[tid2]);
-                }
-            }
-            __syncthreads();
-
-            if(!countOnly){
-                unsigned long long id = atomicAdd(localPos+bin_index, 1ULL);
-                d_queue_info.d_edge_queue[id*2] = row;
-                d_queue_info.d_edge_queue[id*2+1] = col;
-        }        
-    }	
+            
+            unsigned long long id = atomicAdd(localPos+bin_index, 1ULL);
+            d_queue_info.d_edge_queue[id*2] = row;
+            d_queue_info.d_edge_queue[id*2+1] = col;
+        }
+    }  	
 }
 
 template<typename hornetDevice, typename T, typename Operator>
@@ -495,13 +510,14 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     //forAllEdgeVertexPairs(hornet, BinEdges {hd_queue_info_spgemm, true, WORK_FACTOR}, load_balancing);
     // const int BLOCK_SIZE = 64;
     const int BLOCK_SIZE = 32;
-	dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
-    dim3 dimGrid(hornetB.nV()/dimBlock.x + ((hornetB.nV()%dimBlock.x)?1:0), hornetA.nV()/dimBlock.y + ((hornetA.nV()%dimBlock.y)?1:0));
-    printf("%d %d\n", dimGrid.x, dimGrid.y);
-    printf("%d %d\n", dimBlock.x, dimBlock.y);
-    bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<dimGrid,dimBlock>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, true, 5);
-	// CHECK_CUDA_ERROR
-	// printf("passed 1");
+	// dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
+    // dim3 dimGrid(hornetB.nV()/dimBlock.x + ((hornetB.nV()%dimBlock.x)?1:0), hornetA.nV()/dimBlock.y + ((hornetA.nV()%dimBlock.y)?1:0));
+    int threadBlocks = hornetA.nV()/BLOCK_SIZE + ((hornetA.nV()%BLOCK_SIZE)?1:0);
+    //printf("%d %d\n", dimGrid.x, dimGrid.y);
+    //printf("%d %d\n", dimBlock.x, dimBlock.y);
+    bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<threadBlocks,BLOCK_SIZE>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, true, 5);
+	CHECK_CUDA_ERROR
+	printf("passed 1");
 
     // printf("%d, %d \n", dimGrid.x, dimGrid.y);
     // printf("%d, %d \n", hornetA.nV(), hornetB.nV());
@@ -523,9 +539,9 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     //     forAllVertexPairs(hornet, vertex_pairs, BinEdges {hd_queue_info_spgemm, false, WORK_FACTOR});
     // else
     //forAllEdgeVertexPairs(hornet, BinEdges {hd_queue_info_spgemm, false, WORK_FACTOR}, load_balancing);
-    bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<dimGrid,dimBlock>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, false, 5);
-	// CHECK_CUDA_ERROR
-	// printf("passed 2");
+    bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<threadBlocks,BLOCK_SIZE>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, false, 5);
+	CHECK_CUDA_ERROR
+	printf("passed 2");
 
     const int BALANCED_THREADS_LOGMAX = 31-__builtin_clz(BLOCK_SIZE_OP2)+1; // assumes BLOCK_SIZE is int type
     int bin_index;
@@ -616,7 +632,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     hornets_nest::gpu::free(hd_queue_info_spgemm.d_edge_queue);
     
     cudaDeviceSynchronize();
-    if (false){
+    if (true){
 	    triangle_t* h_IntersectCount;
 	    host::allocate(h_IntersectCount, hornetA.nV()*hornetA.nV());
 	    cudaMemcpy(h_IntersectCount, d_IntersectCount, hornetA.nV()*hornetA.nV()*sizeof (triangle_t), cudaMemcpyDeviceToHost);
