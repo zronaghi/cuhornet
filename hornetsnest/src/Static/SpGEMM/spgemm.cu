@@ -176,7 +176,8 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
                                         bool countOnly, const int WORK_FACTOR) {
 
     int bin_index;
-    vid_t row = blockIdx.x * blockDim.x + threadIdx.x;
+    vid_t row = blockIdx.x;
+    const auto MAX_ADJ_UNIONS_BINS_DIV_2  = MAX_ADJ_UNIONS_BINS/2;
     //vid_t col = blockIdx.x * blockDim.x + threadIdx.x;
         // if (row >= hornetDeviceA.nV() || col >= hornetDeviceB.nV()) return;
     if (row >= hornetDeviceA.nV()) return;
@@ -509,13 +510,15 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     // else
     //forAllEdgeVertexPairs(hornet, BinEdges {hd_queue_info_spgemm, true, WORK_FACTOR}, load_balancing);
     // const int BLOCK_SIZE = 64;
-    const int BLOCK_SIZE = 32;
+    const int BLOCK_SIZE = 512;
 	// dim3 dimBlock(BLOCK_SIZE, BLOCK_SIZE);
     // dim3 dimGrid(hornetB.nV()/dimBlock.x + ((hornetB.nV()%dimBlock.x)?1:0), hornetA.nV()/dimBlock.y + ((hornetA.nV()%dimBlock.y)?1:0));
-    int threadBlocks = hornetA.nV()/BLOCK_SIZE + ((hornetA.nV()%BLOCK_SIZE)?1:0);
+    // int threadBlocks = hornetA.nV()/BLOCK_SIZE + ((hornetA.nV()%BLOCK_SIZE)?1:0);
+    int threadBlocks = hornetA.nV();///BLOCK_SIZE + ((hornetA.nV()%BLOCK_SIZE)?1:0);
+
     //printf("%d %d\n", dimGrid.x, dimGrid.y);
     //printf("%d %d\n", dimBlock.x, dimBlock.y);
-    bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<threadBlocks,BLOCK_SIZE>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, true, 5);
+    bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<threadBlocks,BLOCK_SIZE>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, true, 10);
 	CHECK_CUDA_ERROR
 	printf("passed 1");
 
@@ -539,7 +542,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     //     forAllVertexPairs(hornet, vertex_pairs, BinEdges {hd_queue_info_spgemm, false, WORK_FACTOR});
     // else
     //forAllEdgeVertexPairs(hornet, BinEdges {hd_queue_info_spgemm, false, WORK_FACTOR}, load_balancing);
-    bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<threadBlocks,BLOCK_SIZE>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, false, 5);
+    bin_vertex_pair_spgemm<typename HornetGraph::VertexType> <<<threadBlocks,BLOCK_SIZE>>> (hornetA.device(),hornetB.device(),hd_queue_info_spgemm, false, 100);
 	CHECK_CUDA_ERROR
 	printf("passed 2");
 
