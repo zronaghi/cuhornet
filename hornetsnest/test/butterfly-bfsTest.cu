@@ -287,11 +287,11 @@ int main(int argc, char* argv[]) {
                         edgeSplits[numGPUs] = nV;
 
                 #pragma omp barrier
-                    int64_t my_start,my_end;
-                    my_start  = edgeSplits[thread_id];
-                    my_end  = edgeSplits[thread_id+1];
+                    // int64_t my_start,my_end;
+                    // my_start  = edgeSplits[thread_id];
+                    // my_end  = edgeSplits[thread_id+1];
 
-                    printf("\n!!!%ld %ld %ld %lld\n", thread_id,my_start,my_end,h_SortedLengths[thread_id]);
+                    // printf("\n!!!%ld %ld %ld %lld\n", thread_id,my_start,my_end,h_SortedLengths[thread_id]);
                     fflush(stdout);
 
                     if(false){ //dynamic initialization - DO NOT USE. This initialization seems to be buggy.
@@ -398,7 +398,7 @@ int main(int argc, char* argv[]) {
                         max_id  = maxArrayId[m];
                     }
                 }
-                printf("Root is %d\n",max_id);
+                // printf("Root is %d\n",max_id);
                 root=max_id;
                 for(int64_t i=0; i<10; i++){
                     if(i>0){
@@ -502,7 +502,7 @@ int main(int argc, char* argv[]) {
                             float milliseconds = 0;
                             cudaEventElapsedTime(&milliseconds, start, stop);  
                             printf("%f,", milliseconds/1000.0);             
-                            std::cout << "Number of levels is : " << front << std::endl;
+                            // std::cout << "Number of levels is : " << front << std::endl;
                             // std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
                         }
                     }
