@@ -155,8 +155,8 @@ butterfly::butterfly(HornetGraph& hornet, int fanout_) :
     hd_bfsData().queueRemote.initialize((size_t)hornet.nV());
 
 
-//    for(int i=0;i<9; i++)
-//      cudaStreamCreate ( &(streams[i]));
+   for(int i=0;i<9; i++)
+     cudaStreamCreate ( &(streams[i]));
     cudaEventCreate(&syncer);
     cudaEventRecord(syncer,0);
 
@@ -166,9 +166,9 @@ butterfly::butterfly(HornetGraph& hornet, int fanout_) :
 butterfly::~butterfly() {
     release();
 
-    cudaEventDestroy(syncer);    
-//    for(int i=0;i<9; i++)
-//        cudaStreamDestroy((streams[i]));
+    cudaEventDestroy(syncer);
+   for(int i=0;i<9; i++)
+       cudaStreamDestroy((streams[i]));
 
 }
 
@@ -306,11 +306,18 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
                 const int bi = 26;
 
 
-                int vertices = h_binsPrefix[20];
-                int blockSize = 1024;
+                int vertices = h_binsPrefix[16];
+                int blockSize = 32;
+
+                if(vertices>0){
+                    BFSTopDown_One_Iter_kernel__extra_fat<<<1024,blockSize,0,streams[0]>>>(hornet.device(), hd_bfsData,  vertices);
+                }
+
+                vertices =  h_binsPrefix[20] - h_binsPrefix[16];;
+                blockSize = 1024;
                 if(vertices>0){                
-                    // BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,streams[0]>>>(hornet.device(),hd_bfsData,vertices,0);            
-                    BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0>>>(hornet.device(),hd_bfsData,vertices,0);            
+                    BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,streams[1]>>>(hornet.device(),hd_bfsData,vertices,h_binsPrefix[16]);            
+                    // BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0>>>(hornet.device(),hd_bfsData,vertices,0);            
                 }
 
 
@@ -325,8 +332,8 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
                     // blocks = vertices/blockSize;
                     if(vertices>0){
                         // printf("fat is running %d \n",h_binsPrefix[bi]);
-                        // BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,streams[i]>>>(hornet.device(),hd_bfsData,vertices,h_binsPrefix[19+i]);            
-                        BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,0>>>(hornet.device(),hd_bfsData,vertices,h_binsPrefix[19+i]);            
+                        BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,streams[i+1]>>>(hornet.device(),hd_bfsData,vertices,h_binsPrefix[19+i]);            
+                        // BFSTopDown_One_Iter_kernel_fat<<<vertices,blockSize,0,0>>>(hornet.device(),hd_bfsData,vertices,h_binsPrefix[19+i]);            
                     }
 
                     // blockSize = blockSize/2; 

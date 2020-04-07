@@ -90,7 +90,6 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
     for (int i=tid; i<length; i+=blockDim.x) {
        vert_t dst_id = neighPtr[i]; 
 
-
         if(bfs().d_dist[dst_id]==INT32_MAX){
 
             // degree_t prev = atomicCAS(bfs().d_dist + dst_id, INT32_MAX, currLevel);
@@ -103,15 +102,80 @@ __global__ void BFSTopDown_One_Iter_kernel_fat(
                         // printf("%d ",dst_id);
                     bfs().queueLocal.insert(dst_id);
                 }
-
                 bfs().queueRemote.insert(dst_id);
             }
+        }
+    }
+}
 
+template<typename HornetDevice>
+__global__ void BFSTopDown_One_Iter_kernel__extra_fat(
+  HornetDevice hornet , 
+  HostDeviceVar<butterflyData> bfs, 
+  int N){
+    int k=0;
+    int tid = threadIdx.x + blockIdx.x *blockDim.x;
+    int stride = blockDim.x*gridDim.x;
 
+    degree_t currLevel = bfs().currLevel;
+    vert_t lower = bfs().lower;
+    vert_t upper = bfs().upper;
+
+    while (k<N)
+    {
+        vert_t src = bfs().d_lrbRelabled[k];
+
+        vert_t* neighPtr = hornet.vertex(src).neighbor_ptr();
+        int length = hornet.vertex(src).degree();
+
+        for (int i=tid; i<length; i+=stride) {
+           vert_t dst_id = neighPtr[i]; 
+
+            if(bfs().d_dist[dst_id]==INT32_MAX){
+
+                // degree_t prev = atomicCAS(bfs().d_dist + dst_id, INT32_MAX, currLevel);
+                degree_t prev = atomicMin(bfs().d_dist + dst_id, currLevel);
+
+                if (prev == INT32_MAX){
+
+                    if (dst_id >= lower && dst_id < upper){
+
+                            // printf("%d ",dst_id);
+                        bfs().queueLocal.insert(dst_id);
+                    }
+                    bfs().queueRemote.insert(dst_id);
+                }
+            }
         }
 
+        k++;
 
     }
+
+}
+
+template<typename HornetDevice,typename Operator, typename vid_t>
+__global__ void extraFatWorkerLRB(
+  HornetDevice hornet , 
+  vid_t* d_lrbRelabled,
+  Operator op,
+  int N){
+    int k = 0;
+    int tid = threadIdx.x + blockIdx.x *blockDim.x;
+    int stride = blockDim.x*gridDim.x;
+
+    while(k<N){
+        vid_t src = d_lrbRelabled[k];
+        int length = hornet.vertex(src).degree();
+
+        for (int i=tid; i<length; i+=stride) {
+            const auto& vertex = hornet.vertex(src);
+            const auto&   edge = vertex.edge(i);
+            op(vertex,edge);
+        }
+        k++;
+    }
+
 }
 
 
