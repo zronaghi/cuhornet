@@ -382,7 +382,7 @@ void butterfly::oneIterationComplete(){
 }
 
 
-void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int iteration){
+void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int iteration, bool needSort){
 
     if(fanout==1){
 
@@ -473,12 +473,14 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
             // forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
 
 
-            size_t sizeStorage=0;
-            cub::DeviceRadixSort::SortKeys(NULL, sizeStorage,hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,hd_bfsData().h_bufferSize);
-            cub::DeviceRadixSort::SortKeys(cubBuffer, sizeStorage,hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,hd_bfsData().h_bufferSize);
-            vert_t* tempPtr = hd_bfsData().d_bufferSorted;
-            hd_bfsData().d_bufferSorted = hd_bfsData().d_buffer;
-            hd_bfsData().d_buffer = tempPtr;
+            if(needSort==true){
+                size_t sizeStorage=0;
+                cub::DeviceRadixSort::SortKeys(NULL, sizeStorage,hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,hd_bfsData().h_bufferSize);
+                cub::DeviceRadixSort::SortKeys(cubBuffer, sizeStorage,hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,hd_bfsData().h_bufferSize);
+                vert_t* tempPtr = hd_bfsData().d_bufferSorted;
+                hd_bfsData().d_bufferSorted = hd_bfsData().d_buffer;
+                hd_bfsData().d_buffer = tempPtr;
+            }
 
             int blockSize = 256;
             int blocks = (hd_bfsData().h_bufferSize)/blockSize + ((hd_bfsData().h_bufferSize%blockSize)?1:0);

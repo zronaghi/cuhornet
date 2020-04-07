@@ -153,13 +153,18 @@ int main(int argc, char* argv[]) {
         if(f==0 && onlyFanout4)
             continue;
         fanout=fanoutArray[f];
-        for(int lrb=0; lrb<2; lrb++){
+
+    for(int g=minGPUs; g<=maxGPUs;g++){
+            numGPUs=g;
+
+        for(int lrb=0; lrb<3; lrb++){
             if(lrb==0 && onlyLrb)
                 continue;
             isLrb=lrb;
-            for(int g=minGPUs; g<=maxGPUs;g++){
-                numGPUs=g;
-                // int divg=numGPUs;
+            bool needSort=false;
+            if(lrb==2)
+                needSort=true;
+                    // int divg=numGPUs;
 
                 int logNumGPUsArray[17] = {0,1,2,2,2,3,3,3,3,4,4,4,4,4,4,4,4};
                 logNumGPUs = logNumGPUsArray[numGPUs];
@@ -255,6 +260,11 @@ int main(int argc, char* argv[]) {
                 printf("%ld,",logNumGPUs);        
                 printf("%ld,",fanout);
                 printf("%d,",isLrb);
+                if(needSort==false)
+                    printf("0,");
+                else
+                    printf("1,");
+
                 printf("%d,",startRoot); // Starting root
 
                 // printf("\n"); continue;
@@ -400,7 +410,7 @@ int main(int argc, char* argv[]) {
                 }
                 // printf("Root is %d\n",max_id);
                 root=max_id;
-                for(int64_t i=0; i<10; i++){
+                for(int64_t i=0; i<15; i++){
                     if(i>0){
                         root++;
                         if(root>nV)
@@ -458,11 +468,11 @@ int main(int argc, char* argv[]) {
                                 // }
                                 // else{ //if(numGPUs==16){
 
-                                    bfs.communication(bfComm,numGPUs,0);
+                                    bfs.communication(bfComm,numGPUs,needSort);
                                     bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
                                     #pragma omp barrier                        
                                     if(numGPUs>4){
-                                        bfs.communication(bfComm,numGPUs,1);
+                                        bfs.communication(bfComm,numGPUs,1,needSort);
                                         bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
                                         #pragma omp barrier                                                        
                                     }

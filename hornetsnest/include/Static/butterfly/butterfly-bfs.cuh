@@ -66,7 +66,7 @@ public:
     void oneIterationScan(degree_t level,bool lrb=false);
 
     void oneIterationComplete();
-    void communication(butterfly_communication* bfComm, int numGPUs,int iteration);
+    void communication(butterfly_communication* bfComm, int numGPUs,int iteration, bool needSort=false);
 
     void reset()    override;
     void run()      override;
