@@ -155,7 +155,7 @@ butterfly::butterfly(HornetGraph& hornet, int fanout_) :
     hd_bfsData().queueRemote.initialize((size_t)hornet.nV());
 
 
-   for(int i=0;i<9; i++)
+   for(int i=0;i<12; i++)
      cudaStreamCreate ( &(streams[i]));
     cudaEventCreate(&syncer);
     cudaEventRecord(syncer,0);
@@ -167,7 +167,7 @@ butterfly::~butterfly() {
     release();
 
     cudaEventDestroy(syncer);
-   for(int i=0;i<9; i++)
+   for(int i=0;i<12; i++)
        cudaStreamDestroy((streams[i]));
 
 }
@@ -346,7 +346,7 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
                 int smallVertices = elements-h_binsPrefix[bi];
                 int smallVerticesBlocks = (smallVertices)/smallBlockSize + ((smallVertices%smallBlockSize)?1:0);
                 if(smallVerticesBlocks>0){                   
-                    BFSTopDown_One_Iter_kernel<<<smallVerticesBlocks,smallBlockSize,0>>>(hornet.device(),
+                    BFSTopDown_One_Iter_kernel<<<smallVerticesBlocks,smallBlockSize,0,streams[11]>>>(hornet.device(),
                             hd_bfsData,smallVertices,h_binsPrefix[bi]);
                 }
                 // cudaDeviceSynchronize();

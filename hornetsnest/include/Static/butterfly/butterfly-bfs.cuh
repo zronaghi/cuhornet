@@ -79,7 +79,7 @@ public:
 
     HostDeviceVar<butterflyData>       hd_bfsData;  
     int fanout;  
-    cudaStream_t streams[9];
+    cudaStream_t streams[12];
     cudaEvent_t syncer;    
 
     unsigned char* cubBuffer;
