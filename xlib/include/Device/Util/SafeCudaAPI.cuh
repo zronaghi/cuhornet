@@ -72,8 +72,7 @@
 #if !defined(NO_CHECK_CUDA_ERROR)
     #define CHECK_CUDA_ERROR                                                   \
         {                                                                      \
-            cudaDeviceSynchronize();                                           \
-            xlib::detail::getLastCudaError(__FILE__, __LINE__, __func__);      \
+		  /*cudaStreamSynchronize(0);*/											   \
         }
 #else
     #define CHECK_CUDA_ERROR
@@ -193,7 +192,7 @@ template<typename T>
 void cuMallocAux(const char* file, int line, const char* func_name,
                  T*& ptr, size_t num_items) noexcept {
     assert(num_items > 0);
-    auto result = RMM_ALLOC(&ptr, num_items * sizeof(T), 0);//by default, use the default stream
+    auto result = RMM_ALLOC(&ptr, num_items * (size_t)(sizeof(T)), 0);//by default, use the default stream
     if (result != RMM_SUCCESS) {
         RMM_ERROR_HANDLER("cuMalloc", "rmmAlloc", result);
     }
