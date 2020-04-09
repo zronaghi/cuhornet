@@ -89,7 +89,8 @@ int exec(int argc, char* argv[]) {
     using namespace graph::structure_prop;
     using namespace graph::parsing_prop;
 
-    graph::GraphStd<vid_t, eoff_t> graph(UNDIRECTED | ENABLE_INGOING);
+    // graph::GraphStd<vid_t, eoff_t> graph(UNDIRECTED | ENABLE_INGOING);
+    graph::GraphStd<vid_t, eoff_t> graph(DIRECTED | ENABLE_INGOING);
     CommandLineParam cmd(graph, argc, argv,false);
 
     HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),

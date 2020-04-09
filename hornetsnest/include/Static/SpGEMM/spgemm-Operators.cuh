@@ -207,7 +207,9 @@ void forAllEdgesAdjUnionBalancedSpGEMM(HornetGraph &hornetA,
                                        const unsigned long long start, 
                                        const unsigned long long end, 
                                        const Operator &op, 
-                                       unsigned long long threads_per_union, int flag) {
+                                       unsigned long long threads_per_union, 
+                                       int flag,
+                                       cudaStream_t stream) {
     unsigned long long size = end - start; // end is exclusive
     auto grid_size = size*threads_per_union;
     auto _size = size;
@@ -219,7 +221,7 @@ void forAllEdgesAdjUnionBalancedSpGEMM(HornetGraph &hornetA,
     if (size == 0)
         return;
     forAllEdgesAdjUnionBalancedKernelSpGEMM
-        <<< xlib::ceil_div<BLOCK_SIZE_OP2>(grid_size), BLOCK_SIZE_OP2 >>>
+        <<< xlib::ceil_div<BLOCK_SIZE_OP2>(grid_size), BLOCK_SIZE_OP2,0,stream >>>
         (hornetA.device(), hornetB.device(), queue, start, end, threads_per_union, flag, op);
     CHECK_CUDA_ERROR
 }
