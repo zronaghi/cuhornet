@@ -26,12 +26,13 @@ __global__ void NeighborUpdates_QueueingKernel(
   int N,
   degree_t currLevel,
   vert_t lower,
-  vert_t upper){
+  vert_t upper,
+  vert_t start=0){
     int k = threadIdx.x + blockIdx.x *blockDim.x;
     if(k>=N)
         return;
 
-    vert_t dst = bfs().d_buffer[k];
+    vert_t dst = bfs().d_buffer[k+start];
 
     if(bfs().d_dist[dst] == INT32_MAX){
 
@@ -52,10 +53,13 @@ struct NeighborUpdates {
 
     OPERATOR(Vertex& dst_v){
         vert_t dst = dst_v.id();
-        degree_t currLevel = bfs().currLevel;
 
         // if (bfs().d_dist[dst] == INT32_MAX){
             // degree_t prev = atomicCAS(bfs().d_dist + dst, INT32_MAX, currLevel);
+
+        if(bfs().d_dist[dst] == INT32_MAX){
+
+            degree_t currLevel = bfs().currLevel;
             degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
 
             if(prev == INT32_MAX){
@@ -71,7 +75,7 @@ struct NeighborUpdates {
 
                 }
             }
-        // }
+        }
     }
 };
 

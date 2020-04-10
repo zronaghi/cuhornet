@@ -211,52 +211,82 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
         int my_gpu = hd_bfsData().gpu_id;
 
         hd_bfsData().h_bufferSize=0;
-        int pos=0;
-        for(int s=0; s<4;s++){
-            int copy_gpu;
-            if(iteration==0)
-                copy_gpu=but_net_first[my_gpu][s];
-            else
-                copy_gpu=but_net_second[my_gpu][s];
+        if(0){
+            int pos=0;
+            for(int s=0; s<4;s++){
+                int copy_gpu;
+                if(iteration==0)
+                    copy_gpu=but_net_first[my_gpu][s];
+                else
+                    copy_gpu=but_net_second[my_gpu][s];
 
-            if(copy_gpu>=numGPUs){
-                copy_gpu=numGPUs-1;
+                if(copy_gpu>=numGPUs){
+                    copy_gpu=numGPUs-1;
+                }
+
+
+                int remoteLength = bfComm[copy_gpu].queue_remote_length;                
+                
+                if(my_gpu!=copy_gpu && remoteLength >0){
+                    // int remoteLength = bfComm[copy_gpu].queue_remote_length;                
+                    cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice,streams[s]);
+                    // cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice);
+                    pos+=remoteLength;
+                    hd_bfsData().h_bufferSize+=remoteLength;
+
+                }
             }
+            cudaEventSynchronize(syncer);    
+            // cudaDeviceSynchronize();
+            // cudaStreamSynchronize(0);
+            // cudaDeviceSynchronize();
 
+            if (hd_bfsData().h_bufferSize > 0){
+                // forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
 
-            int remoteLength = bfComm[copy_gpu].queue_remote_length;                
-            
-            if(my_gpu!=copy_gpu && remoteLength >0){
-                // int remoteLength = bfComm[copy_gpu].queue_remote_length;                
-                cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice,streams[s]);
-                // cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice);
-                pos+=remoteLength;
-                hd_bfsData().h_bufferSize+=remoteLength;
+                int blockSize = 512;
+                int blocks = (hd_bfsData().h_bufferSize)/blockSize + ((hd_bfsData().h_bufferSize%blockSize)?1:0);
 
+                // if(needSort){
+                //     NeighborUpdates_QueueingKernel<true><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
+                // }else{
+                    NeighborUpdates_QueueingKernel<false><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
+                // }
             }
+        }else{
+            int pos=0;
+            for(int s=0; s<4;s++){
+                int copy_gpu;
+                if(iteration==0)
+                    copy_gpu=but_net_first[my_gpu][s];
+                else
+                    copy_gpu=but_net_second[my_gpu][s];
+
+                if(copy_gpu>=numGPUs){
+                    copy_gpu=numGPUs-1;
+                }
+
+                int remoteLength = bfComm[copy_gpu].queue_remote_length;                
+                
+                if(my_gpu!=copy_gpu && remoteLength >0){
+                    // int remoteLength = bfComm[copy_gpu].queue_remote_length;                
+                    cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice,streams[s]);
+
+                    int blockSize = 64;
+                    int blocks = (remoteLength)/blockSize + ((remoteLength%blockSize)?1:0);
+
+                    NeighborUpdates_QueueingKernel<false><<<blocks,blockSize,0,streams[s]>>>(hornet.device(),hd_bfsData,remoteLength,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper,pos);
+                    pos+=remoteLength;
+                    hd_bfsData().h_bufferSize+=remoteLength;
+
+                }
+            }
+            cudaEventSynchronize(syncer);    
+
         }
-        cudaEventSynchronize(syncer);    
-        cudaDeviceSynchronize();
-        // cudaStreamSynchronize(0);
-        // cudaDeviceSynchronize();
-
-        if (hd_bfsData().h_bufferSize > 0){
-            // forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
-
-            int blockSize = 256;
-            int blocks = (hd_bfsData().h_bufferSize)/blockSize + ((hd_bfsData().h_bufferSize%blockSize)?1:0);
-
-            if(needSort){
-                NeighborUpdates_QueueingKernel<true><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
-            }else{
-                NeighborUpdates_QueueingKernel<false><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
-            }
-
-
-        }
-
 
     }
+
 
 
 }
