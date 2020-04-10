@@ -154,32 +154,7 @@ __global__ void BFSTopDown_One_Iter_kernel__extra_fat(
 
 }
 
-template<typename HornetDevice,typename Operator, typename vid_t>
-__global__ void extraFatWorkerLRB(
-  HornetDevice hornet , 
-  vid_t* d_lrbRelabled,
-  Operator op,
-  int N){
-    int k = 0;
-    int tid = threadIdx.x + blockIdx.x *blockDim.x;
-    int stride = blockDim.x*gridDim.x;
-
-    while(k<N){
-        vid_t src = d_lrbRelabled[k];
-        int length = hornet.vertex(src).degree();
-
-        for (int i=tid; i<length; i+=stride) {
-            const auto& vertex = hornet.vertex(src);
-            const auto&   edge = vertex.edge(i);
-            op(vertex,edge);
-        }
-        k++;
-    }
-
-}
-
-
-template<typename HornetDevice>
+template<bool sorted, typename HornetDevice>
 __global__ void NeighborUpdates_QueueingKernel(
   HornetDevice hornet , 
   HostDeviceVar<butterflyData> bfs, 
@@ -197,22 +172,40 @@ __global__ void NeighborUpdates_QueueingKernel(
     // vert_t lower = bfs().lower;
     // vert_t upper = bfs().upper;
 
-    if (k>0){
-        vert_t dstPrev = bfs().d_buffer[k-1];
-        if(dstPrev==dst)
-            return;
-    }
+    // if(sorted==true){
+    //     if (k>0){
+    //         vert_t dstPrev = bfs().d_buffer[k-1];
+    //         if(dstPrev==dst)
+    //             return;
+    //     }        
+    // }
 
 
-    degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
+    // degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
 
-    if(prev == INT32_MAX){
-        bfs().queueRemote.insert(dst);
+    // if(prev == INT32_MAX){
+    //     bfs().queueRemote.insert(dst);
 
-        if (dst >= bfs().lower && dst <bfs().upper){
-            bfs().queueLocal.insert(dst);
+    //     if (dst >= bfs().lower && dst <bfs().upper){
+    //         bfs().queueLocal.insert(dst);
+    //     }
+    // }
+
+
+
+    if(bfs().d_dist[dst] == INT32_MAX){
+
+        degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
+        if(prev == INT32_MAX)
+        {
+            bfs().queueRemote.insert(dst);
+
+            if (dst >= bfs().lower && dst <bfs().upper){
+                bfs().queueLocal.insert(dst);            
+            }
         }
     }
+
 }
 
 
