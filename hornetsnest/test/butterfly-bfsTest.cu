@@ -495,7 +495,7 @@ int main(int argc, char* argv[]) {
                             float milliseconds = 0;
                             cudaEventElapsedTime(&milliseconds, start, stop);  
                             printf("%f,", milliseconds/1000.0);             
-                            std::cout << "Number of levels is : " << front << std::endl;
+                            // std::cout << "Number of levels is : " << front << std::endl;
                             // std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
                         }
                     }
