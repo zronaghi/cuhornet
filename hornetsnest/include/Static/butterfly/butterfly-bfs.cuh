@@ -76,6 +76,7 @@ public:
 
 // private:
     load_balancing::BinarySearch load_balancing;
+    load_balancing::LogarthimRadixBinning32 lr_lrb;
 
     HostDeviceVar<butterflyData>       hd_bfsData;  
     int fanout;  

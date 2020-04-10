@@ -14,7 +14,7 @@ using namespace hornets_nest::gpu;
 namespace hornets_nest {
 
 
-struct countDegrees {
+struct countDegreesBFS {
     int32_t *bins; 
 
 
@@ -49,7 +49,7 @@ struct countDegrees {
 
 
 
-__global__ void  binPrefixKernel(int32_t     *bins, int32_t     *d_binsPrefix){
+__global__ void  binPrefixKernelBFS(int32_t     *bins, int32_t     *d_binsPrefix){
 
     int i = threadIdx.x + blockIdx.x *blockDim.x;
     if(i>=1)
@@ -65,7 +65,7 @@ __global__ void  binPrefixKernel(int32_t     *bins, int32_t     *d_binsPrefix){
 }
 
 template<typename HornetDevice>
-__global__ void  rebinKernel(
+__global__ void  rebinKernelBFS(
   HornetDevice hornet ,
   const vert_t    *original,
   int32_t    *d_binsPrefix,
@@ -120,6 +120,8 @@ __global__ void  rebinKernel(
 
 butterfly::butterfly(HornetGraph& hornet, int fanout_) :
                                        StaticAlgorithm(hornet),
+                                       // load_balancing(hornet)
+                                       lr_lrb(hornet),
                                        load_balancing(hornet)
 {
 
@@ -239,20 +241,24 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
     if (hd_bfsData().queueLocal.size() > 0) {
         if(!lrb){
             forAllEdges(hornet, hd_bfsData().queueLocal, BFSTopDown_One_Iter { hd_bfsData },load_balancing);
-            cudaEventSynchronize(syncer);    
-
+            cudaEventSynchronize(syncer);
+        }
+        if(true){
+            forAllEdges(hornet, hd_bfsData().queueLocal, BFSTopDown_One_Iter { hd_bfsData },lr_lrb);
+            cudaEventSynchronize(syncer);
         }
         else{
+
             // hd_bfsData().queueLocal
             int32_t elements = hd_bfsData().queueLocal.size();
 
             // gpu::memsetZero(hd_bfsData().d_bins, 33);            
             cudaMemset(hd_bfsData().d_bins,0,33*sizeof(vert_t));
 
-            forAllVertices(hornet, hd_bfsData().queueLocal,countDegrees{hd_bfsData().d_bins});
+            forAllVertices(hornet, hd_bfsData().queueLocal,countDegreesBFS{hd_bfsData().d_bins});
             cudaEventSynchronize(syncer);    
 
-            binPrefixKernel <<<1,32>>> (hd_bfsData().d_bins,hd_bfsData().d_binsPrefix);  
+            binPrefixKernelBFS <<<1,32>>> (hd_bfsData().d_bins,hd_bfsData().d_binsPrefix);  
 
             int32_t h_binsPrefix[33];
             cudaMemcpy(h_binsPrefix, hd_bfsData().d_binsPrefix,sizeof(int32_t)*33, cudaMemcpyDeviceToHost);
@@ -266,7 +272,7 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
             int rebinblocks = (elements)/RB_BLOCK_SIZE + (((elements)%RB_BLOCK_SIZE)?1:0);
 
             if(rebinblocks){
-              rebinKernel<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device(),hd_bfsData().queueLocal.device_input_ptr(),
+              rebinKernelBFS<<<rebinblocks,RB_BLOCK_SIZE>>>(hornet.device(),hd_bfsData().queueLocal.device_input_ptr(),
                 hd_bfsData().d_binsPrefix, hd_bfsData().d_lrbRelabled,elements);
             }
 
@@ -415,25 +421,25 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
         // }
 
     }else if(fanout==4){
-        // int but_net_first[16][4]={{0,1,2,3},{0,1,2,3},{0,1,2,3},{0,1,2,3},
-        //                           {4,5,6,7},{4,5,6,7},{4,5,6,7},{4,5,6,7},
-        //                           {8,9,10,11},{8,9,10,11},{8,9,10,11},{8,9,10,11},
-        //                           {12,13,14,15},{12,13,14,15},{12,13,14,15},{12,13,14,15}};
-
-        // int but_net_second[16][4]={{0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
-        //                           {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
-        //                           {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
-        //                           {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15}};
-
-        int but_net_first[16][4]={{0,1,2,3},{1,2,3,0},{2,3,0,1},{3,0,1,2},
-                                  {4,5,6,7},{5,6,7,4},{6,7,4,5},{7,4,5,6},
-                                  {8,9,10,11},{9,10,11,8},{10,11,8,9},{8,9,10,11},
-                                  {12,13,14,15},{13,14,15,12},{14,15,12,13},{15,12,13,14}};
+        int but_net_first[16][4]={{0,1,2,3},{0,1,2,3},{0,1,2,3},{0,1,2,3},
+                                  {4,5,6,7},{4,5,6,7},{4,5,6,7},{4,5,6,7},
+                                  {8,9,10,11},{8,9,10,11},{8,9,10,11},{8,9,10,11},
+                                  {12,13,14,15},{12,13,14,15},{12,13,14,15},{12,13,14,15}};
 
         int but_net_second[16][4]={{0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
-                                   {12,0,4,8},{13,1,5,9},{14,2,6,10},{15,3,7,11},
-                                   {8,12,0,4},{9,13,1,5},{10,14,2,6},{11,15,3,7},
-                                   {4,8,12,0},{5,9,13,1},{6,10,14,2},{7,11,15,3}};
+                                  {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
+                                  {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
+                                  {0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15}};
+
+        // int but_net_first[16][4]={{0,1,2,3},{1,2,3,0},{2,3,0,1},{3,0,1,2},
+        //                           {4,5,6,7},{5,6,7,4},{6,7,4,5},{7,4,5,6},
+        //                           {8,9,10,11},{9,10,11,8},{10,11,8,9},{8,9,10,11},
+        //                           {12,13,14,15},{13,14,15,12},{14,15,12,13},{15,12,13,14}};
+
+        // int but_net_second[16][4]={{0,4,8,12},{1,5,9,13},{2,6,10,14},{3,7,11,15},
+        //                            {12,0,4,8},{13,1,5,9},{14,2,6,10},{15,3,7,11},
+        //                            {8,12,0,4},{9,13,1,5},{10,14,2,6},{11,15,3,7},
+        //                            {4,8,12,0},{5,9,13,1},{6,10,14,2},{7,11,15,3}};
 
 
         int my_gpu = hd_bfsData().gpu_id;
@@ -465,7 +471,7 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
             }
         }
         cudaEventSynchronize(syncer);    
-
+        cudaDeviceSynchronize();
         // cudaStreamSynchronize(0);
         // cudaDeviceSynchronize();
 
@@ -473,20 +479,25 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
             // forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
 
 
-            if(needSort==true){
-                size_t sizeStorage=0;
-                cub::DeviceRadixSort::SortKeys(NULL, sizeStorage,hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,hd_bfsData().h_bufferSize);
-                cub::DeviceRadixSort::SortKeys(cubBuffer, sizeStorage,hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,hd_bfsData().h_bufferSize);
-                vert_t* tempPtr = hd_bfsData().d_bufferSorted;
-                hd_bfsData().d_bufferSorted = hd_bfsData().d_buffer;
-                hd_bfsData().d_buffer = tempPtr;
-            }
+            // if(needSort==true){
+                // size_t sizeStorage=0;
+                // cub::DeviceRadixSort::SortKeys(NULL, sizeStorage,hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,hd_bfsData().h_bufferSize);
+                // cub::DeviceRadixSort::SortKeys(cubBuffer, sizeStorage,hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,hd_bfsData().h_bufferSize);
+                // cudaMemcpy(hd_bfsData().d_buffer,hd_bfsData().d_bufferSorted,sizeof(vert_t)*hd_bfsData().h_bufferSize,cudaMemcpyDeviceToDevice);
+                // cudaEventSynchronize(syncer);
+                // vert_t* tempPtr = hd_bfsData().d_bufferSorted;
+                // hd_bfsData().d_bufferSorted = hd_bfsData().d_buffer;
+                // hd_bfsData().d_buffer = tempPtr;
+            // }
 
             int blockSize = 256;
             int blocks = (hd_bfsData().h_bufferSize)/blockSize + ((hd_bfsData().h_bufferSize%blockSize)?1:0);
 
-
-            NeighborUpdates_QueueingKernel<<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
+            if(needSort){
+                NeighborUpdates_QueueingKernel<true><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
+            }else{
+                NeighborUpdates_QueueingKernel<false><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
+            }
 
 
         }
