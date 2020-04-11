@@ -393,83 +393,194 @@ int main(int argc, char* argv[]) {
 
 
                 root=max_id;
-                for(int64_t i=0; i<15; i++){
+                // for(int64_t i=0; i<150; i++){
+                for(int64_t i=0; i<10; i++){
                     if(i>0){
                         root++;
                         if(root>nV)
                             root=0;
                     }
+                    if(0){
+                        #pragma omp parallel
+                        {      
+                            int64_t thread_id = omp_get_thread_num ();
+                            cudaSetDevice(thread_id);
 
-                    #pragma omp parallel
-                    {      
-                        int64_t thread_id = omp_get_thread_num ();
-                        cudaSetDevice(thread_id);
+                            int64_t my_start,my_end;
+                            my_start  = edgeSplits[thread_id];
+                            my_end  = edgeSplits[thread_id+1];
 
-                        int64_t my_start,my_end;
-                        my_start  = edgeSplits[thread_id];
-                        my_end  = edgeSplits[thread_id+1];
+                            // butterfly bfs(hornet_graph,fanout);
+                            butterfly bfs(*hornetArray[thread_id],fanout);
 
-                        // butterfly bfs(hornet_graph,fanout);
-                        butterfly bfs(*hornetArray[thread_id],fanout);
+                            #pragma omp barrier
+                            if(thread_id==0){
+                                // TM.start();   
+                                cudaEventRecord(start); 
+                                cudaEventSynchronize(start); 
+                            }
 
-                        #pragma omp barrier
-                        if(thread_id==0){
-                            // TM.start();   
-                            cudaEventRecord(start); 
-                            cudaEventSynchronize(start); 
+                            bfs.reset();    
+                            bfs.setInitValues(root, my_start, my_end,thread_id);
+
+                            bfs.queueRoot();
+
+                            #pragma omp barrier
+
+                            int front = 1;
+                            degree_t countTraversed=1;
+                            while(true){
+                                bfs.oneIterationScan(front,isLrb);
+                                bfComm[thread_id].queue_remote_ptr = bfs.remoteQueuePtr();
+                                bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+
+                                #pragma omp barrier
+
+                                if(fanout==1){
+                                    for (int l=0; l<logNumGPUs; l++){
+                                        bfs.communication(bfComm,numGPUs,l);
+                     
+                                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                                        #pragma omp barrier
+                                    }
+                                }else if (fanout==4){
+                                    // if(numGPUs==4){
+                                    //     bfs.communication(bfComm,numGPUs,0);
+                     
+                                    //     bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                                    //     #pragma omp barrier                        
+                                    // }
+                                    // else{ //if(numGPUs==16){
+
+                                        bfs.communication(bfComm,numGPUs,needSort);
+                                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                                        #pragma omp barrier                        
+                                        if(numGPUs>4){
+                                            bfs.communication(bfComm,numGPUs,1,needSort);
+                                            bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                                            #pragma omp barrier                                                        
+                                        }
+                                    // }
+                                }
+                    // /            #pragma omp barrier
+
+                                bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
+                                bfs.oneIterationComplete();
+
+                                #pragma omp barrier
+                                bfComm[thread_id].queue_local_length = bfs.localQueueSize();
+
+                                #pragma omp barrier
+
+                                degree_t currFrontier=0;
+                                for(int64_t t=0; t<numGPUs; t++){
+                                    currFrontier+=bfComm[t].queue_local_length;
+                                    countTraversed+=bfComm[t].queue_local_length;
+                                }
+
+                                front++;
+                                if(currFrontier==0){
+                                    break;
+                                }
+                       
+                            }
+                            #pragma omp barrier
+
+                            if(thread_id==0){
+
+                                // TM.stop();
+                                // cudaProfilerStop();
+                                // TM.print("Butterfly BFS");
+                                cudaEventRecord(stop);
+                                cudaEventSynchronize(stop);
+                                float milliseconds = 0;
+                                cudaEventElapsedTime(&milliseconds, start, stop);  
+                                printf("%f,", milliseconds/1000.0);             
+                                std::cout << "Number of levels is : " << front << std::endl;
+                                // std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
+                            }
+                        }
+                    }
+                    else{
+                        using butterflyPtr = butterfly*;
+                        butterflyPtr bfsArray[numGPUs];
+                        #pragma omp parallel for
+                        for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                            cudaSetDevice(thread_id);
+
+                            bfsArray[thread_id] = new butterfly(*hornetArray[thread_id],fanout);
                         }
 
-                        bfs.reset();    
-                        bfs.setInitValues(root, my_start, my_end,thread_id);
+                        cudaEventRecord(start); 
+                        cudaEventSynchronize(start); 
 
-                        bfs.queueRoot();
+                        #pragma omp parallel for
+                        for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                            cudaSetDevice(thread_id);
+                            int64_t my_start,my_end;
+                            my_start  = edgeSplits[thread_id];
+                            my_end  = edgeSplits[thread_id+1];
 
-                        #pragma omp barrier
+                            bfsArray[thread_id]->reset();    
+                            bfsArray[thread_id]->setInitValues(root, my_start, my_end,thread_id);
+                            bfsArray[thread_id]->queueRoot();
+                        }
 
                         int front = 1;
                         degree_t countTraversed=1;
                         while(true){
-                            bfs.oneIterationScan(front,isLrb);
-                            bfComm[thread_id].queue_remote_ptr = bfs.remoteQueuePtr();
-                            bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
 
-                            #pragma omp barrier
+                            #pragma omp parallel for
+                            for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                                cudaSetDevice(thread_id);
+                            
+                                bfsArray[thread_id]->oneIterationScan(front,isLrb);
+                                bfComm[thread_id].queue_remote_ptr = bfsArray[thread_id]->remoteQueuePtr();
+                                bfComm[thread_id].queue_remote_length = bfsArray[thread_id]->remoteQueueSize();
+                            }
 
                             if(fanout==1){
-                                for (int l=0; l<logNumGPUs; l++){
-                                    bfs.communication(bfComm,numGPUs,l);
-                 
-                                    bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                                    #pragma omp barrier
+
+                                #pragma omp parallel for
+                                for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                                    cudaSetDevice(thread_id);
+                                    for (int l=0; l<logNumGPUs; l++){
+                                        bfsArray[thread_id]->communication(bfComm,numGPUs,l);
+                                        bfComm[thread_id].queue_remote_length = bfsArray[thread_id]->remoteQueueSize();
+                                    }
                                 }
                             }else if (fanout==4){
-                                // if(numGPUs==4){
-                                //     bfs.communication(bfComm,numGPUs,0);
-                 
-                                //     bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                                //     #pragma omp barrier                        
-                                // }
-                                // else{ //if(numGPUs==16){
 
-                                    bfs.communication(bfComm,numGPUs,needSort);
-                                    bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                                    #pragma omp barrier                        
-                                    if(numGPUs>4){
-                                        bfs.communication(bfComm,numGPUs,1,needSort);
-                                        bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                                        #pragma omp barrier                                                        
+
+                                #pragma omp parallel for
+                                for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                                    cudaSetDevice(thread_id);
+                                    bfsArray[thread_id]->communication(bfComm,numGPUs,needSort);
+                                    bfComm[thread_id].queue_remote_length = bfsArray[thread_id]->remoteQueueSize();
+                                }
+
+                                if(numGPUs>4){
+
+                                    #pragma omp parallel for
+                                    for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                                        cudaSetDevice(thread_id);
+                                        bfsArray[thread_id]->communication(bfComm,numGPUs,1,needSort);
+                                        bfComm[thread_id].queue_remote_length = bfsArray[thread_id]->remoteQueueSize();
                                     }
-                                // }
+                                }
                             }
-                // /            #pragma omp barrier
 
-                            bfComm[thread_id].queue_remote_length = bfs.remoteQueueSize();
-                            bfs.oneIterationComplete();
-
-                            #pragma omp barrier
-                            bfComm[thread_id].queue_local_length = bfs.localQueueSize();
-
-                            #pragma omp barrier
+                            #pragma omp parallel for
+                            for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                                cudaSetDevice(thread_id);
+                                bfComm[thread_id].queue_remote_length = bfsArray[thread_id]->remoteQueueSize();
+                                bfsArray[thread_id]->oneIterationComplete();
+                            }
+                            #pragma omp parallel for
+                            for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                                cudaSetDevice(thread_id);
+                                bfComm[thread_id].queue_local_length = bfsArray[thread_id]->localQueueSize();
+                            }
 
                             degree_t currFrontier=0;
                             for(int64_t t=0; t<numGPUs; t++){
@@ -483,21 +594,23 @@ int main(int argc, char* argv[]) {
                             }
                    
                         }
-                        #pragma omp barrier
 
-                        if(thread_id==0){
 
-                            // TM.stop();
-                            // cudaProfilerStop();
-                            // TM.print("Butterfly BFS");
-                            cudaEventRecord(stop);
-                            cudaEventSynchronize(stop);
-                            float milliseconds = 0;
-                            cudaEventElapsedTime(&milliseconds, start, stop);  
-                            printf("%f,", milliseconds/1000.0);             
-                            // std::cout << "Number of levels is : " << front << std::endl;
-                            // std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
+                        cudaEventRecord(stop);
+                        cudaEventSynchronize(stop);
+                        float milliseconds = 0;
+                        cudaEventElapsedTime(&milliseconds, start, stop);  
+                        printf("%f,", milliseconds/1000.0);             
+                        std::cout << "Number of levels is : " << front << std::endl;
+                        // std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
+
+                        #pragma omp parallel for
+                        for(int thread_id=0; thread_id<numGPUs; thread_id++){
+                             cudaSetDevice(thread_id);
+                             delete bfsArray[thread_id];
                         }
+                        // delete[] bfsArray;
+                        
                     }
                 }
                 printf("\n");
