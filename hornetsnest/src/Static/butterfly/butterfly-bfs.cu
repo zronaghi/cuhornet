@@ -275,7 +275,13 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
                     int blockSize = 64;
                     int blocks = (remoteLength)/blockSize + ((remoteLength%blockSize)?1:0);
 
-                    NeighborUpdates_QueueingKernel<false><<<blocks,blockSize,0,streams[s]>>>(hornet.device(),hd_bfsData,remoteLength,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper,pos);
+                    if(iteration==0){
+                        NeighborUpdates_QueueingKernel<false><<<blocks,blockSize,0,streams[s]>>>(hornet.device(),hd_bfsData,remoteLength,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper,pos);
+
+                    }else{
+                        NeighborUpdates_QueueingKernel<true><<<blocks,blockSize,0,streams[s]>>>(hornet.device(),hd_bfsData,remoteLength,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper,pos);
+
+                    }
                     pos+=remoteLength;
                     hd_bfsData().h_bufferSize+=remoteLength;
 

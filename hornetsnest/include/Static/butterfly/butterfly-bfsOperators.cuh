@@ -19,7 +19,7 @@ struct InitBFS {
 
 
 
-template<bool sorted, typename HornetDevice>
+template<bool second, typename HornetDevice>
 __global__ void NeighborUpdates_QueueingKernel(
   HornetDevice hornet , 
   HostDeviceVar<butterflyData> bfs, 
@@ -34,16 +34,27 @@ __global__ void NeighborUpdates_QueueingKernel(
 
     vert_t dst = bfs().d_buffer[k+start];
 
-    if(bfs().d_dist[dst] == INT32_MAX){
+    if(!second){
+        if(bfs().d_dist[dst] == INT32_MAX){
 
-        degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
-        if(prev == INT32_MAX)
-        {
-            bfs().queueRemote.insert(dst);
-            if (dst >= bfs().lower && dst <bfs().upper){
-                bfs().queueLocal.insert(dst);            
+            degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
+            if(prev == INT32_MAX)
+            {
+                bfs().queueRemote.insert(dst);
+                if (dst >= bfs().lower && dst <bfs().upper){
+                    bfs().queueLocal.insert(dst);            
+                }
             }
-        }
+        }        
+    }else{
+            if (dst >= bfs().lower && dst <bfs().upper && bfs().d_dist[dst] == INT32_MAX){
+                degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
+                if(prev == INT32_MAX){
+                    bfs().queueLocal.insert(dst);
+                }
+
+            }
+
     }
 
 }
