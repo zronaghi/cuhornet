@@ -272,7 +272,7 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
                     // int remoteLength = bfComm[copy_gpu].queue_remote_length;                
                     cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice,streams[s]);
 
-                    int blockSize = 64;
+                    int blockSize = 128;
                     int blocks = (remoteLength)/blockSize + ((remoteLength%blockSize)?1:0);
 
                     if(iteration==0){

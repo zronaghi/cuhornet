@@ -393,7 +393,7 @@ int main(int argc, char* argv[]) {
 
 
                 root=max_id;
-                for(int64_t i=0; i<15; i++){
+                for(int64_t i=0; i<150; i++){
                     if(i>0){
                         root++;
                         if(root>nV)
