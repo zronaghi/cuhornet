@@ -69,23 +69,26 @@ struct NeighborUpdates {
             // degree_t prev = atomicCAS(bfs().d_dist + dst, INT32_MAX, currLevel);
 
         if(bfs().d_dist[dst] == INT32_MAX){
+            bfs().d_dist[dst] = bfs().currLevel;
+            bfs().queueRemote.insert(dst);
+            if (dst >= bfs().lower && dst <bfs().upper){
+                // printf("*");
+                bfs().queueLocal.insert(dst);
+            }
+            // degree_t currLevel = bfs().currLevel;
+            // degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
 
-            degree_t currLevel = bfs().currLevel;
-            degree_t prev = atomicMin(bfs().d_dist + dst, currLevel);
-
-            if(prev == INT32_MAX){
-                bfs().queueRemote.insert(dst);
 
                 // bfs().d_dist[dst]=bfs().currLevel;
-                if (dst >= bfs().lower && dst <bfs().upper){
+                // if (dst >= bfs().lower && dst <bfs().upper){
                     // printf("*");
-                    bfs().queueLocal.insert(dst);
+                    // bfs().queueLocal.insert(dst);
 
             // if(bfs().currLevel==0 && bfs().gpu_id==0)                
                     // printf("%d ",dst);
 
-                }
-            }
+                // }
+            // }
         }
     }
 };
