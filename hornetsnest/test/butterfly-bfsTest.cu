@@ -62,37 +62,6 @@ int main(int argc, char* argv[]) {
     vert_t *h_cooSrc,*h_cooDst;
     int64_t nV,nE;
 
-    cudaSetDevice(0);
-    {
-        ParsingProp pp(graph::detail::ParsingEnum::NONE);
-        // GraphStd<vert_t, int64_t> graph(UNDIRECTED);
-        graph::GraphStd<int64_t, int64_t> graph(DIRECTED);
-        // graph::GraphStd<vert_t, eoff_t> graph(DIRECTED);
-        graph.read(argv[1],pp,true);
-
-        auto cooGraph = graph.coo_ptr();
-
-        h_cooSrc = new vert_t[2*graph.nE()];
-        h_cooDst = new vert_t[2*graph.nE()];
-
-        #pragma omp parallel for schedule(static,1)
-        for(int64_t i=0; i < graph.nE(); i++){
-            // if(i>(graph.nE()-50))
-            //     printf("%ld %ld\n",cooGraph[i].first,cooGraph[i].second);
-            h_cooSrc[i] = cooGraph[i].first;
-            h_cooDst[i] = cooGraph[i].second;
-            h_cooSrc[i+graph.nE()] = cooGraph[i].second;
-            h_cooDst[i+graph.nE()] = cooGraph[i].first;
-        }
-        nV = graph.nV();
-        nE = 2*graph.nE();
-
-        printf("Number of vertices is : %ld\n", nV);
-        printf("Number of edges is    : %ld\n", nE);
-
-
-    }
-
     int64_t numGPUs=4; int64_t logNumGPUs=2; int64_t fanout=1;
     int64_t minGPUs=1,maxGPUs=16;
     // bool isLrb=false;
@@ -115,8 +84,73 @@ int main(int argc, char* argv[]) {
         onlyFanout4 = atoi(argv[5]);
     }
 
+    int reOrgFlag = 1;
+    if (argc>=7){
+        reOrgFlag = atoi(argv[6]);
+    }
+
+
+    cudaSetDevice(0);
+    {
+        ParsingProp pp(graph::detail::ParsingEnum::NONE);
+        // GraphStd<vert_t, int64_t> graph(UNDIRECTED);
+        graph::GraphStd<int64_t, int64_t> graph(DIRECTED);
+        // graph::GraphStd<vert_t, eoff_t> graph(DIRECTED);
+        graph.read(argv[1],pp,true);
+
+        auto cooGraph = graph.coo_ptr();
+
+        h_cooSrc = new vert_t[2*graph.nE()];
+        h_cooDst = new vert_t[2*graph.nE()];
+
+        #pragma omp parallel for 
+        for(int64_t i=0; i < graph.nE(); i++){
+            // if(i>(graph.nE()-50))
+            //     printf("%ld %ld\n",cooGraph[i].first,cooGraph[i].second);
+            h_cooSrc[i] = cooGraph[i].first;
+            h_cooDst[i] = cooGraph[i].second;
+            h_cooSrc[i+graph.nE()] = cooGraph[i].second;
+            h_cooDst[i+graph.nE()] = cooGraph[i].first;
+        }
+        nV = graph.nV();
+        nE = 2*graph.nE();
+
+        printf("Number of vertices is : %ld\n", nV);
+        printf("Number of edges is    : %ld\n", nE);
+
+
+        if(reOrgFlag){
+            printf("REORDERING!!\n");
+            for(int mul= 1; mul < 10; mul++)
+            {
+                int m = 1 << mul;
+                auto nVdivM = nV/m;
+                #pragma omp parallel for
+                for(int64_t i=0; i < nE; i++){
+                    if((h_cooSrc[i]%m)==0){
+                        if((h_cooSrc[i]+nVdivM)>=nV){
+                            h_cooSrc[i] = h_cooSrc[i]%nVdivM;
+                        }else{
+                            h_cooSrc[i]+=nVdivM;
+                        }
+                    }
+
+                    if((h_cooDst[i]%m)==0){
+                        if((h_cooDst[i]+nVdivM)>=nV){
+                            h_cooDst[i] = h_cooDst[i]%nVdivM;
+                        }else{
+                            h_cooDst[i]+=nVdivM;
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+
     omp_set_num_threads(maxGPUs);
     hornets_nest::gpu::initializeRMMPoolAllocation(0,maxGPUs);//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
+
 
     cudaSetDevice(0);
     
@@ -391,7 +425,8 @@ int main(int argc, char* argv[]) {
 
                 printf("%d,",max_id); // Starting root
 
-
+                float totalTime = 0;
+                int totatLevels = 0;
                 root=max_id;
                  for(int64_t i=0; i<150; i++){
                 // for(int64_t i=0; i<10; i++){
@@ -604,6 +639,9 @@ int main(int argc, char* argv[]) {
                         //std::cout << "Number of levels is : " << front << std::endl;
                         // std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
 
+                        totatLevels +=front;
+                        totalTime +=milliseconds/1000.0;
+
                         #pragma omp parallel for schedule(static,1)
                         for(int thread_id=0; thread_id<numGPUs; thread_id++){
                              cudaSetDevice(thread_id);
@@ -613,6 +651,8 @@ int main(int argc, char* argv[]) {
                         
                     }
                 }
+                printf("!!!! %f %d \n", totalTime, totatLevels);
+
                 printf("\n");
 
             }
