@@ -6,6 +6,7 @@
 #include <vector>
 
 #include <omp.h>
+#include <time.h> 
 
 #include "Static/butterfly/butterfly-bfs.cuh"
 #include "Static/butterfly/butterfly-bfsOperators.cuh"
@@ -146,6 +147,35 @@ int main(int argc, char* argv[]) {
             }
         }
     }
+
+
+    for (int g=0; g<maxGPUs; g++){
+
+
+        clock_t t; 
+        t = clock(); 
+
+        omp_set_num_threads(g);
+        int sum[1024]={0};
+        int totalIterations = 652*10;
+        for(int times = 0; times <totalIterations; times++){
+            #pragma omp parallel for schedule(static,1)
+            for(int thread_id=0; thread_id<g; thread_id++){
+                int localSum=0;
+                for(int i=0; i<100; i++)
+                        localSum+=i;
+                sum[g*16] += localSum;
+            }
+        }
+        t = clock() - t; 
+
+        double time_taken = ((double)t)/CLOCKS_PER_SEC; // in seconds 
+
+        printf("fun() took %lf (%lf) seconds to execute %d \n", time_taken, time_taken/double(totalIterations), sum[0]); 
+    }
+    return 0;
+
+
 
 
     omp_set_num_threads(maxGPUs);
