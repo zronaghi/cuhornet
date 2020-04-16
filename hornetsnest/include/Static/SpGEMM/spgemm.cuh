@@ -20,7 +20,8 @@ using HornetInit  = ::hornet::HornetInit<vid_t>;
 //class SpGEMM : public StaticAlgorithm<HornetGraph> {
 class SpGEMM {
 public:
-    SpGEMM(HornetGraph& hornetA, HornetGraph& hornetB, HornetGraph& hornetC);
+    SpGEMM(HornetGraph& hornetA, HornetGraph& hornetB, HornetGraph& hornetC, 
+        int concurrentIntersections, float workFactor, bool sanityCheck);
     ~SpGEMM();
 
     void reset();
@@ -46,6 +47,9 @@ private:
     HornetGraph& hornetB;
     HornetGraph& hornetC;
 
+    int concurrentIntersections;
+    float workFactor;
+    bool sanityCheck;
 };
 
 //==============================================================================

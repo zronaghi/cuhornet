@@ -88,7 +88,8 @@ __global__ void forAllEdgesAdjUnionBalancedKernelSpGEMM(hornetDevice hornetDevic
                                                         unsigned long long start, 
                                                         unsigned long long end, 
                                                         unsigned long long threads_per_union, 
-                                                        int flag, Operator op) {
+                                                        int flag, Operator op,
+                                                        int startRow) {
 
     // using namespace adj_union;
     // using vid_t = typename HornetDevice::VertexType;
@@ -194,7 +195,7 @@ __global__ void forAllEdgesAdjUnionBalancedKernelSpGEMM(hornetDevice hornetDevic
             if (!sourceSmaller)
                 flag2 = flag+2;
 
-            op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, v_nodes+vi_begin, v_nodes+vi_end, flag2);
+            op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, v_nodes+vi_begin, v_nodes+vi_end, flag2, startRow);
         }
     }
 }
@@ -209,7 +210,8 @@ void forAllEdgesAdjUnionBalancedSpGEMM(HornetGraph &hornetA,
                                        const Operator &op, 
                                        unsigned long long threads_per_union, 
                                        int flag,
-                                       cudaStream_t stream) {
+                                       cudaStream_t stream,
+                                       int startRow) {
     unsigned long long size = end - start; // end is exclusive
     auto grid_size = size*threads_per_union;
     auto _size = size;
@@ -222,7 +224,7 @@ void forAllEdgesAdjUnionBalancedSpGEMM(HornetGraph &hornetA,
         return;
     forAllEdgesAdjUnionBalancedKernelSpGEMM
         <<< xlib::ceil_div<BLOCK_SIZE_OP2>(grid_size), BLOCK_SIZE_OP2,0,stream >>>
-        (hornetA.device(), hornetB.device(), queue, start, end, threads_per_union, flag, op);
+        (hornetA.device(), hornetB.device(), queue, start, end, threads_per_union, flag, op, startRow);
     CHECK_CUDA_ERROR
 }
 

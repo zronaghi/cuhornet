@@ -89,18 +89,30 @@ int exec(int argc, char* argv[]) {
     using namespace graph::structure_prop;
     using namespace graph::parsing_prop;
 
-    // graph::GraphStd<vid_t, eoff_t> graph(UNDIRECTED | ENABLE_INGOING);
-    graph::GraphStd<vid_t, eoff_t> graph(DIRECTED | ENABLE_INGOING);
-    CommandLineParam cmd(graph, argc, argv,false);
-
-    HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
-                           graph.csr_out_edges());
 
 
-    HornetInit hornet_init_inverse(graph.nV(), graph.nE(),
-                                   graph.csr_in_offsets(),
-                                   graph.csr_in_edges());
 
+    int directed=0;
+    if(argc>=3)
+        directed = atoi(argv[2]);
+
+    int concurrentIntersections = 1<<26; 
+    if (argc>=4){
+        concurrentIntersections = atoi(argv[3]);
+    }
+    float workFactor = 100;
+    if (argc>=5){
+        workFactor = atof(argv[4]);
+    }
+
+
+    bool sanityCheck=false;
+    int iSanityCheck=0;
+    if (argc>=6){
+        iSanityCheck = atoi(argv[5]);
+        if(iSanityCheck>0)
+            sanityCheck = true;
+    }
     // graph::GraphStd<vid_t, eoff_t> graph(UNDIRECTED);
     // graph::GraphStd<vid_t, eoff_t> graph2(UNDIRECTED);
     // graph.read(argv[1], DIRECTED_BY_DEGREE | PRINT_INFO | SORT);
@@ -112,18 +124,32 @@ int exec(int argc, char* argv[]) {
     //                                graph.csr_out_offsets(),
     //                                graph.csr_out_edges());
 
+    graph::GraphStd<vid_t, eoff_t>* graph;
+
+    if(directed){
+        graph = new graph::GraphStd<vid_t, eoff_t>(DIRECTED | ENABLE_INGOING);
+    }else{
+        graph = new graph::GraphStd<vid_t, eoff_t>(UNDIRECTED | ENABLE_INGOING);
+    }
+    CommandLineParam cmd(*graph, argc, argv,false);
+
+    HornetInit hornet_init(graph->nV(), graph->nE(), graph->csr_out_offsets(),
+                           graph->csr_out_edges());
+
+
+    HornetInit hornet_init_inverse(graph->nV(), graph->nE(),
+                                   graph->csr_in_offsets(),
+                                   graph->csr_in_edges());
+
+
+
     HornetGraph hornet_graph_inv(hornet_init_inverse);
     HornetGraph hornet_graph(hornet_init);
+    HornetGraph hornet_result(graph->nV());
 
-    SpGEMM sp(hornet_graph, hornet_graph_inv, hornet_graph);
+    SpGEMM sp(hornet_graph, hornet_graph_inv, hornet_graph,concurrentIntersections,workFactor, sanityCheck);
     sp.init();
     
-    // int work_factor;
-    // if (argc > 2) {
-    //     work_factor = atoi(argv[2]);
-    // } else {
-    //     work_factor = 1;
-    // }
 
     Timer<DEVICE> TM(5);
     //cudaProfilerStart();
@@ -138,12 +164,6 @@ int exec(int argc, char* argv[]) {
     //triangle_t deviceTriangleCount = sp.countTriangles();
     //printf("Device triangles: %llu\n", deviceTriangleCount);
   
-    /*
-    int64_t hostTriCount = 0;
-    std::cout << "Starting host triangle counting" << std::endl;
-    hosspountTriangles(graph.nV(), graph.nE(),graph.csr_out_offsets(), graph.csr_out_edges(),&hostTriCount);
-    std::cout << "Host triangles: " << hostTriCount << std::endl;
-    */
     return 0;
 }
 
