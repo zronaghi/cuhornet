@@ -311,13 +311,13 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
                 vi_low = 0;
                 vi_high = vi_end-vi_begin;
                 while (vi_low <= vi_high) {
-                    vi_mid = (vi_low+vi_high)/2;
+                    vi_mid = (vi_low+vi_high)>>1;
                     auto comp = (*(vi_begin+vi_mid) - search_val);
                     if (!comp) {
                         count += 1;
                         break;
                     }
-		    int geq=comp>0;
+                    int geq=comp>0;
                     vi_high = geq*(vi_mid-1)+(1-geq)*vi_high;
                     vi_low = (1-geq)*(vi_mid+1)+(geq)*vi_low;
                     // if (comp > 0) {
@@ -429,34 +429,84 @@ void forAllAdjUnions(HornetGraph&    hornetA,
         // balanced kernel
         int streamCounter=0;
 
-        while ((threads_log < BALANCED_THREADS_LOGMAX) && (threads_log+LOG_OFFSET_BALANCED < BINS_1D_DIM)) 
-        {
-            bin_index = bin_offset+(threads_log+LOG_OFFSET_BALANCED)*BINS_1D_DIM;
+        if(0){
+
+            while ((threads_log < BALANCED_THREADS_LOGMAX) && (threads_log+LOG_OFFSET_BALANCED < BINS_1D_DIM)) 
+            {
+                bin_index = bin_offset+(threads_log+LOG_OFFSET_BALANCED)*BINS_1D_DIM;
+                end_index = queue_pos[bin_index];
+                size = end_index - start_index;
+                if (size) {
+                    threads_per = 1 << (threads_log-1); 
+                    ////ToDo
+                     forAllEdgesAdjUnionBalancedSpGEMM(hornetA, hornetB, hd_queue_info_spgemm.d_edge_queue, start_index, end_index, 
+                                                       OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, threads_per, 0,streams[streamCounter++],startRow);
+                }
+                start_index = end_index;
+                threads_log += 1;
+            }
+            // process remaining "tail" bins
+            bin_index = MAX_ADJ_UNIONS_BINS/2;
             end_index = queue_pos[bin_index];
             size = end_index - start_index;
             if (size) {
                 threads_per = 1 << (threads_log-1); 
                 ////ToDo
-                 forAllEdgesAdjUnionBalancedSpGEMM(hornetA, hornetB, hd_queue_info_spgemm.d_edge_queue, start_index, end_index, 
-                                                   OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, threads_per, 0,streams[streamCounter++],startRow);
+                forAllEdgesAdjUnionBalancedSpGEMM(hornetA, hornetB, hd_queue_info_spgemm.d_edge_queue, start_index, end_index, 
+                                                  OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, threads_per, 0,streams[streamCounter++],startRow);
             }
             start_index = end_index;
-            threads_log += 1;
+        }else
+        {
+            bin_offset = 0;
+
+            streamCounter=0;
+            int currIndex = bin_offset;
+            for(int bin_r=0; bin_r<BINS_1D_DIM; bin_r++){
+                threads_per = 1;
+                for(int bin_c=0; bin_c<BINS_1D_DIM; bin_c++){
+
+                    if(bin_r==0 && bin_c==0){
+                        size = queue_pos[0]; 
+                        end_index = queue_pos[0];
+                        start_index = 0;
+                    }
+                    else{
+                        size = queue_pos[currIndex]-queue_pos[currIndex-1]; 
+                        end_index = queue_pos[currIndex];
+                        start_index = queue_pos[currIndex-1];
+                    }
+
+
+                    if (size) {
+                        ////ToDo
+                        forAllEdgesAdjUnionBalancedSpGEMM(hornetA, hornetB, 
+                                                        hd_queue_info_spgemm.d_edge_queue, 
+                                                        start_index, end_index, 
+                                                        OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, 
+                                                        threads_per, 0,streams[streamCounter],startRow);
+
+                        streamCounter++;
+                        if(streamCounter>=MAX_STREAMS)
+                            streamCounter=0;
+                    }
+
+                    if(((bin_c+1)%5)==0)
+                        threads_per*=2;
+                    if (threads_per >512)
+                        threads_per=512;
+                    currIndex++;
+                    // streamCounter++;
+                    // if(streamCounter>32)
+                    //     streamCounter=0;
+                }
+
+            }
+
         }
-        // process remaining "tail" bins
-        bin_index = MAX_ADJ_UNIONS_BINS/2;
-        end_index = queue_pos[bin_index];
-        size = end_index - start_index;
-        if (size) {
-            threads_per = 1 << (threads_log-1); 
-            ////ToDo
-            forAllEdgesAdjUnionBalancedSpGEMM(hornetA, hornetB, hd_queue_info_spgemm.d_edge_queue, start_index, end_index, 
-                                              OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, threads_per, 0,streams[streamCounter++],startRow);
-        }
-        start_index = end_index;
 
         // imbalanced kernel
-        if(1){
+        if(0){
             const int IMBALANCED_THREADS_LOGMAX = BINS_1D_DIM-1; 
             bin_offset = MAX_ADJ_UNIONS_BINS/2;
             threads_log = 1;
@@ -518,6 +568,15 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                     end_index = queue_pos[currIndex];
                     start_index = queue_pos[currIndex-1];
 
+                    // if(((bin_r+bin_c+1)%8)==0)
+                    //     threads_per*=2;
+
+                    threads_per = 1 << (1 + (bin_r+bin_c)/5);
+                    if (threads_per >256)
+                        threads_per=256;
+                    currIndex++;
+
+
                     if (size) {
                         ////ToDo
                         forAllEdgesAdjUnionImbalancedSpGEMM(hornetA, hornetB, 
@@ -525,16 +584,11 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                                                          start_index, end_index, 
                                                          OPERATOR_AdjIntersectionCountBalancedSpGEMM {d_IntersectCount, hornetA.nV()}, 
                                                          threads_per, 1, streams[streamCounter],startRow); 
-                    streamCounter++;
-                    if(streamCounter>=MAX_STREAMS)
-                        streamCounter=0;
+                        streamCounter++;
+                    	if(streamCounter>=MAX_STREAMS)
+                            streamCounter=0;
                     }
 
-                    if(((bin_c+1)%5)==0)
-                        threads_per*=2;
-                    if (threads_per >512)
-                        threads_per=512;
-                    currIndex++;
                     // streamCounter++;
                     // if(streamCounter>32)
                     //     streamCounter=0;
