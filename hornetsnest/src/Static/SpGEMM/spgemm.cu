@@ -477,6 +477,9 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                         start_index = queue_pos[currIndex-1];
                     }
 
+                    threads_per = 1 << (1 + (bin_r+bin_c)/5);
+                    if (threads_per >256)
+                        threads_per=256;
 
                     if (size) {
                         ////ToDo
@@ -490,15 +493,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                         if(streamCounter>=MAX_STREAMS)
                             streamCounter=0;
                     }
-
-                    if(((bin_c+1)%5)==0)
-                        threads_per*=2;
-                    if (threads_per >512)
-                        threads_per=512;
                     currIndex++;
-                    // streamCounter++;
-                    // if(streamCounter>32)
-                    //     streamCounter=0;
                 }
 
             }
@@ -568,13 +563,9 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                     end_index = queue_pos[currIndex];
                     start_index = queue_pos[currIndex-1];
 
-                    // if(((bin_r+bin_c+1)%8)==0)
-                    //     threads_per*=2;
-
                     threads_per = 1 << (1 + (bin_r+bin_c)/5);
                     if (threads_per >256)
                         threads_per=256;
-                    currIndex++;
 
 
                     if (size) {
@@ -588,10 +579,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                     	if(streamCounter>=MAX_STREAMS)
                             streamCounter=0;
                     }
-
-                    // streamCounter++;
-                    // if(streamCounter>32)
-                    //     streamCounter=0;
+                    currIndex++;
                 }
 
             }
