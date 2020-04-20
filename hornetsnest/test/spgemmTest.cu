@@ -142,12 +142,27 @@ int exec(int argc, char* argv[]) {
                                    graph->csr_in_edges());
 
 
+    // Useful code for checking if the inverse graph was also sorted -- it was not!
+    // for(int v=0; v < graph->nV(); v++){
+    //     auto length = graph->csr_in_offsets()[v+1]-graph->csr_in_offsets()[v];
+    //     auto pos=graph->csr_in_offsets()[v];
+    //     for(int e=1; e < length; e++){
+    //         if(graph->csr_in_edges()[pos+e]<graph->csr_in_edges()[pos+e-1]){
+    //             printf("NOT SORTED\n");
+    //             break;
+    //         }
+    //     }
+    // }
+
 
     HornetGraph hornet_graph_inv(hornet_init_inverse);
     HornetGraph hornet_graph(hornet_init);
     HornetGraph hornet_result(graph->nV());
 
-    SpGEMM sp(hornet_graph, hornet_graph_inv, hornet_graph,concurrentIntersections,workFactor, sanityCheck);
+    hornet_graph.sort();
+    hornet_graph_inv.sort();
+
+    SpGEMM sp(hornet_graph, hornet_graph_inv, hornet_result,concurrentIntersections,workFactor, sanityCheck);
     sp.init();
     
 
