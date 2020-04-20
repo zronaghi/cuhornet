@@ -70,7 +70,7 @@ __global__ void bin_vertex_pair_spgemm (hornetDevice hornetDeviceA,
 
     int bin_index;
     vid_t row = blockIdx.x + startRow;
-    const auto MAX_ADJ_UNIONS_BINS_DIV_2  = MAX_ADJ_UNIONS_BINS/2;
+    // const auto MAX_ADJ_UNIONS_BINS_DIV_2  = MAX_ADJ_UNIONS_BINS/2;
     //vid_t col = blockIdx.x * blockDim.x + threadIdx.x;
         // if (row >= hornetDeviceA.nV() || col >= hornetDeviceB.nV()) return;
     if (row >= hornetDeviceA.nV()) return;
@@ -477,8 +477,13 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                         start_index = queue_pos[currIndex-1];
                     }
 
-                    threads_per = 1 << (1 + (bin_r+bin_c)/5);
-                    if (threads_per >256)
+                    threads_per = std::max((bin_r+bin_c)/5,1);
+                    if(threads_per<=1)
+                        threads_per=1;
+                    else
+                        threads_per = 1 << (threads_per-1);
+
+                    if (threads_per > 256)
                         threads_per=256;
 
                     if (size) {
@@ -495,6 +500,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                     }
                     currIndex++;
                 }
+                printf("\n");
 
             }
 
@@ -534,6 +540,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                 if(threads_log > 6)
                     threads_per=8;
                 // printf("%lld\n",size);
+
             }
             // process remaining "tail" bins
             bin_index = MAX_ADJ_UNIONS_BINS;
@@ -563,8 +570,16 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                     end_index = queue_pos[currIndex];
                     start_index = queue_pos[currIndex-1];
 
-                    threads_per = 1 << (1 + (bin_r+bin_c)/5);
-                    if (threads_per >256)
+                    // threads_per = 1 << (1 + (bin_r+bin_c)/5);
+                    // if (threads_per >256)
+                    //     threads_per=256;
+                    threads_per = std::max((bin_r+bin_c)/5,1);
+                    if(threads_per<=1)
+                        threads_per=1;
+                    else
+                        threads_per = 1 << (threads_per-1);
+
+                    if (threads_per > 256)
                         threads_per=256;
 
 
