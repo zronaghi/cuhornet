@@ -500,10 +500,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
                     }
                     currIndex++;
                 }
-                printf("\n");
-
             }
-
         }
 
         // imbalanced kernel
