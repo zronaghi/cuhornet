@@ -44,6 +44,11 @@
 #include <thrust/gather.h>
 #include <vector>
 
+#include <rmm/rmm.h>
+#include <rmm/thrust_rmm_allocator.h>
+
+using namespace rmm;
+
 namespace hornet {
 
 template <typename, DeviceType = DeviceType::DEVICE> class SoAData;
@@ -63,7 +68,7 @@ class SoAData<TypeList<Ts...>, device_t> {
     using Map = typename
     std::conditional<
     (device_t == DeviceType::DEVICE),
-    typename thrust::device_vector<T>,
+    typename rmm::device_vector<T>,
     typename thrust::host_vector<T>>::type;
 
     SoAData(const int num_items = 0, bool initToZero = false) noexcept;
@@ -147,6 +152,8 @@ class CSoAData<TypeList<Ts...>, device_t> {
     void resize(const int resize_items) noexcept;
 
     DeviceType get_device_type(void) noexcept;
+
+    void segmented_sort(int segment_length_log2);
 };
 
 
@@ -165,4 +172,5 @@ void print_soa(CSoAData<TypeList<Ts...>, DeviceType::DEVICE>& data);
 }
 
 #include "impl/SoAData.i.cuh"
+#include "impl/SoADataSort.i.cuh"
 #endif
