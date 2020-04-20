@@ -236,7 +236,7 @@ __global__ void forAllEdgesAdjUnionImbalancedKernelSpGEMM(hornetDevice hornetDev
         ui_end = (thread_union_id+1)*work_per_thread + std::min(thread_union_id+1, remainder_work) - 1;
 
         int flag2=flag;
-        if (!sourceSmaller)
+        if (sourceSmaller)
             flag2 = flag+2;
 
         if (ui_end < u_len) {

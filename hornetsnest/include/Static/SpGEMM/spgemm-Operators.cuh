@@ -192,7 +192,7 @@ __global__ void forAllEdgesAdjUnionBalancedKernelSpGEMM(hornetDevice hornetDevic
         }
         if (diag_id < total_work) {
             int flag2 = flag;
-            if (!sourceSmaller)
+            if (sourceSmaller)
                 flag2 = flag+2;
 
             op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, v_nodes+vi_begin, v_nodes+vi_end, flag2, startRow);
