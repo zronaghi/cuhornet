@@ -232,4 +232,6 @@ void forAllEdgesAdjUnionBalancedSpGEMM(HornetGraph &hornetA,
 }
 
 
+
+
 } // namespace hornets_nest

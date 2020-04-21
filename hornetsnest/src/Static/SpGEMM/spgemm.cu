@@ -346,6 +346,24 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
     }
 };
 
+__global__ void compressNNZtoBatch(triangle_t* d_IntersectCount,
+                                   int64_t maxNumberIntersections,
+                                   int32_t startRow,
+                                   vid_t rowLen,
+                                   vid_t *d_batchSizeCounter,
+                                   vid_t *d_src,
+                                   vid_t *d_dest){
+    vid_t id = blockIdx.x * blockDim.x + threadIdx.x;
+    if(id >=maxNumberIntersections)
+        return;
+
+    if(d_IntersectCount[id]!=0){
+        auto pos = atomicAdd(d_batchSizeCounter,1);
+        d_src[pos]  = (id/rowLen)+startRow;
+        d_dest[pos] = id%rowLen;
+    }
+}
+
 ////adj_unions and bin_edges defined in Operator++i.cuh
 //template<typename Operator>
 void forAllAdjUnions(HornetGraph&    hornetA,
@@ -388,6 +406,15 @@ void forAllAdjUnions(HornetGraph&    hornetA,
     unsigned long long *queue_sizes = (unsigned long long *)calloc(MAX_ADJ_UNIONS_BINS, sizeof(unsigned long long));
     hornets_nest::gpu::allocate(hd_queue_info_spgemm.d_queue_pos, MAX_ADJ_UNIONS_BINS+1);
     unsigned long long *queue_pos = (unsigned long long *)calloc(MAX_ADJ_UNIONS_BINS+1, sizeof(unsigned long long));
+
+    vid_t *d_src,*d_dest, *d_batchSizeCounter;
+
+    vid_t h_batchSizeCounter = 0;
+    hornets_nest::gpu::allocate(d_src, maxNumberIntersections);
+    hornets_nest::gpu::allocate(d_dest, maxNumberIntersections);
+    hornets_nest::gpu::allocate(d_batchSizeCounter, 1);
+//    hornets_nest::gpu::allocate(d_weight, maxNumberIntersections); // currently disabled since we are not actually computing weights
+
 
 
     int startRow = 0;
@@ -599,9 +626,27 @@ void forAllAdjUnions(HornetGraph&    hornetA,
 
             }
         }
+        cudaMemset(d_batchSizeCounter,0,sizeof(vid_t));
+
+
+        int64_t compressTB = maxNumberIntersections/BLOCK_SIZE + ((maxNumberIntersections%BLOCK_SIZE)?1:0);
+
+        compressNNZtoBatch<<<compressTB,BLOCK_SIZE>>>(d_IntersectCount, maxNumberIntersections, startRow, hornetB.nV() ,d_batchSizeCounter,d_src,d_dest);
+
+        cudaMemcpy(&h_batchSizeCounter, d_batchSizeCounter, sizeof(vid_t), cudaMemcpyDeviceToHost);
+
+        if(h_batchSizeCounter>0){
+            UpdatePtr ptr(h_batchSizeCounter, d_src, d_dest);
+            Update batch_update(ptr);
+            hornetC.insert(batch_update,false,false);
+
+        }
+
     }
 
-
+    hornets_nest::gpu::free(d_batchSizeCounter);
+    hornets_nest::gpu::free(d_src);
+    hornets_nest::gpu::free(d_dest);
     hornets_nest::gpu::free(hd_queue_info_spgemm.d_queue_pos); 
     hornets_nest::gpu::free(hd_queue_info_spgemm.d_queue_sizes);
     hornets_nest::gpu::free(hd_queue_info_spgemm.d_edge_queue);

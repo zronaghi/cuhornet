@@ -176,6 +176,8 @@ int exec(int argc, char* argv[]) {
     //cudaProfilerStop();
     TM.print("Computation time:");
 
+
+    std::cout << "The number of edges in the Output Hornet is " << hornet_result.nE() << std::endl;
     //triangle_t deviceTriangleCount = sp.countTriangles();
     //printf("Device triangles: %llu\n", deviceTriangleCount);
   
