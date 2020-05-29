@@ -40,7 +40,6 @@ butterfly::butterfly(HornetGraph& hornet, int fanout_) :
     gpu::allocate(cubBuffer, 2*fanout*hornet.nV());
 
 
-    gpu::allocate(hd_bfsData().d_Marked, hornet.nV());
     gpu::allocate(hd_bfsData().d_dist, hornet.nV());
 
     gpu::allocate(hd_bfsData().d_lrbRelabled, hornet.nV());
@@ -74,7 +73,7 @@ void butterfly::setInitValues(vert_t root_ ,vert_t lower_, vert_t upper_,int64_t
     //     std::cout << " " << gpu_id_ << " " << lower_ << " " <<  upper_ << " " <<  root_ << std::endl;
     // hd_bfsData.sync();
 
-    hd_bfsData().currLevel  = 1;
+    //hd_bfsData().currLevel  = 1;
     hd_bfsData().root       = root_;
     hd_bfsData().lower      = lower_;
     hd_bfsData().upper      = upper_;
@@ -90,14 +89,13 @@ void butterfly::setInitValues(vert_t root_ ,vert_t lower_, vert_t upper_,int64_t
 
 
 void butterfly::reset() {
-
+    hd_bfsData().currLevel  = 1;
     forAllnumV(hornet, InitBFS { hd_bfsData });
     cudaEventSynchronize(syncer);    
 }
 
 void butterfly::release(){
     gpu::free(hd_bfsData().d_buffer);
-    gpu::free(hd_bfsData().d_Marked);
     gpu::free(hd_bfsData().d_dist);
     gpu::free(hd_bfsData().d_lrbRelabled);
     gpu::free(hd_bfsData().d_bins);
@@ -118,6 +116,7 @@ void butterfly::queueRoot(){
 
 
     if (hd_bfsData().root >= hd_bfsData().lower && hd_bfsData().root <hd_bfsData().upper){
+    // if (hd_bfsData().lower <= hd_bfsData().root && hd_bfsData().root < hd_bfsData().upper){
         hd_bfsData().queueLocal.insert(hd_bfsData().root);                   // insert source in the frontier
     }
     gpu::memsetZero(hd_bfsData().d_dist + hd_bfsData().root);
@@ -144,18 +143,15 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
 void butterfly::oneIterationComplete(){
 
     hd_bfsData().queueLocal.swap();
-
     hd_bfsData().queueRemote.clear();
-    // cudaDeviceSynchronize();
-    // cudaStreamSynchronize(0);
     cudaEventSynchronize(syncer);    
-
-
 
 }
 
 
-void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int iteration, bool needSort){
+void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int iteration){
+
+    // printf("\nMY ITERATION and FANOUT %d %d\n\n",fanout,iteration);
 
     if(fanout==1){
 
@@ -176,7 +172,7 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
         hd_bfsData().h_bufferSize=bfComm[copy_gpu].queue_remote_length;
 
         if(remoteLength>0){
-            cudaMemcpyAsync(hd_bfsData().d_buffer,bfComm[copy_gpu].queue_remote_ptr, hd_bfsData().h_bufferSize*sizeof(vert_t),cudaMemcpyDeviceToDevice);            
+            cudaMemcpy(hd_bfsData().d_buffer,bfComm[copy_gpu].queue_remote_ptr, hd_bfsData().h_bufferSize*sizeof(vert_t),cudaMemcpyDeviceToDevice);            
             forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
             cudaEventSynchronize(syncer);    
 
@@ -223,36 +219,44 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
                 if(copy_gpu>=numGPUs){
                     copy_gpu=numGPUs-1;
                 }
-
-
-                int remoteLength = bfComm[copy_gpu].queue_remote_length;                
+               int remoteLength = bfComm[copy_gpu].queue_remote_length;
                 
                 if(my_gpu!=copy_gpu && remoteLength >0){
-                    // int remoteLength = bfComm[copy_gpu].queue_remote_length;                
-                    cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice,streams[s]);
-                    // cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice);
+                    // int remoteLength = bfComm[copy_gpu].queue_remote_length;
+                    cudaMemcpy(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice);
+                    // cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice,streams[s]);
                     pos+=remoteLength;
                     hd_bfsData().h_bufferSize+=remoteLength;
-
                 }
             }
             cudaEventSynchronize(syncer);    
-            // cudaDeviceSynchronize();
-            // cudaStreamSynchronize(0);
-            // cudaDeviceSynchronize();
 
-            if (hd_bfsData().h_bufferSize > 0){
-                // forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
+            pos = 0;
+            for(int s=0; s<4;s++){
+                int copy_gpu;
+                if(iteration==0)
+                    copy_gpu=but_net_first[my_gpu][s];
+                else
+                    copy_gpu=but_net_second[my_gpu][s];
 
-                int blockSize = 512;
-                int blocks = (hd_bfsData().h_bufferSize)/blockSize + ((hd_bfsData().h_bufferSize%blockSize)?1:0);
-
-                // if(needSort){
-                //     NeighborUpdates_QueueingKernel<true><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
-                // }else{
-                    NeighborUpdates_QueueingKernel<false><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,hd_bfsData().h_bufferSize,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper);
-                // }
+                if(copy_gpu>=numGPUs){
+                    copy_gpu=numGPUs-1;
+                }
+                int remoteLength = bfComm[copy_gpu].queue_remote_length;
+                
+                if(remoteLength >0){
+                        int blockSize = 128;
+                        int blocks = (remoteLength)/blockSize + ((remoteLength%blockSize)?1:0);
+                        if(iteration==0){
+                            NeighborUpdates_QueueingKernel_NoAtomics<false><<<blocks,blockSize>>>(hornet.device(),hd_bfsData,remoteLength,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper,pos);
+                        }else{
+                            NeighborUpdates_QueueingKernel_NoAtomics<true> <<<blocks,blockSize>>>(hornet.device(),hd_bfsData,remoteLength,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper,pos);
+                        }
+                }
+                pos+=remoteLength;
             }
+            cudaEventSynchronize(syncer);    
+
         }else{
             int pos=0;
             for(int s=0; s<4;s++){
@@ -266,21 +270,20 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
                     copy_gpu=numGPUs-1;
                 }
 
-                int remoteLength = bfComm[copy_gpu].queue_remote_length;                
+                int remoteLength = bfComm[copy_gpu].queue_remote_length;
                 
                 if(my_gpu!=copy_gpu && remoteLength >0){
-                    // int remoteLength = bfComm[copy_gpu].queue_remote_length;                
+                    // int remoteLength = bfComm[copy_gpu].queue_remote_length;
                     cudaMemcpyAsync(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice,streams[s]);
+                    // cudaMemcpy(hd_bfsData().d_buffer+pos, bfComm[copy_gpu].queue_remote_ptr, remoteLength*sizeof(vert_t),cudaMemcpyDeviceToDevice);
 
                     int blockSize = 128;
                     int blocks = (remoteLength)/blockSize + ((remoteLength%blockSize)?1:0);
 
                     if(iteration==0){
                         NeighborUpdates_QueueingKernel<false><<<blocks,blockSize,0,streams[s]>>>(hornet.device(),hd_bfsData,remoteLength,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper,pos);
-
                     }else{
                         NeighborUpdates_QueueingKernel<true><<<blocks,blockSize,0,streams[s]>>>(hornet.device(),hd_bfsData,remoteLength,hd_bfsData().currLevel, hd_bfsData().lower, hd_bfsData().upper,pos);
-
                     }
                     pos+=remoteLength;
                     hd_bfsData().h_bufferSize+=remoteLength;
