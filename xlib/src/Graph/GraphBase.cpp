@@ -205,9 +205,9 @@ void GraphBase<vid_t, eoff_t>::read(const char* filename,               //NOLINT
     } else
         ERROR("Graph type not recognized");
     fin.close();
-    if (!returnCOO){
+    // if (!returnCOO){
         COOtoCSR();
-    }
+    // }
 }
 
 //==============================================================================

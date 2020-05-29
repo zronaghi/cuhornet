@@ -54,6 +54,10 @@ pos_t vertexBinarySearch(const t *offsets, pos_t l, pos_t r, t x)
     return l; 
 } 
 
+#include <vector>
+#include <algorithm>
+using vecPair = pair<int,int>;
+vector< vecPair > vecInput;
 
 int main(int argc, char* argv[]) {
 
@@ -92,35 +96,74 @@ int main(int argc, char* argv[]) {
     }
 
     cudaSetDevice(0);
-    {
+    // if(0)
+    // {
+    //     ParsingProp pp(graph::detail::ParsingEnum::NONE);
+    //     // graph::GraphStd<int64_t, int64_t> graph(UNDIRECTED);
+    //     graph::GraphStd<int64_t, int64_t> graph(DIRECTED);
+    //     // graph::GraphStd<vert_t, eoff_t> graph(DIRECTED);
+    //     graph.read(argv[1],pp,true);
+
+    //     auto cooGraph = graph.coo_ptr();
+
+    //     h_cooSrc = new vert_t[2*graph.nE()];
+    //     h_cooDst = new vert_t[2*graph.nE()];
+
+    //     #pragma omp parallel for 
+    //     for(int64_t i=0; i < graph.nE(); i++){
+    //         // if(i>(graph.nE()-50))
+    //         //     printf("%ld %ld\n",cooGraph[i].first,cooGraph[i].second);
+    //         h_cooSrc[i] = cooGraph[i].first;
+    //         h_cooDst[i] = cooGraph[i].second;
+    //         h_cooSrc[i+graph.nE()] = cooGraph[i].second;
+    //         h_cooDst[i+graph.nE()] = cooGraph[i].first;
+    //     }
+    //     nV = graph.nV();
+    //     nE = 2*graph.nE();
+
+    //     printf("Number of vertices is : %ld\n", nV);
+    //     printf("Number of edges is    : %ld\n", nE);
+
+
+    //     if(reOrgFlag){
+    //         printf("REORDERING!!\n");
+    //         for(int mul= 1; mul < 10; mul++)
+    //         {
+    //             int m = 1 << mul;
+    //             auto nVdivM = nV/m;
+    //             #pragma omp parallel for
+    //             for(int64_t i=0; i < nE; i++){
+    //                 if((h_cooSrc[i]%m)==0){
+    //                     if((h_cooSrc[i]+nVdivM)>=nV){
+    //                         h_cooSrc[i] = h_cooSrc[i]%nVdivM;
+    //                     }else{
+    //                         h_cooSrc[i]+=nVdivM;
+    //                     }
+    //                 }
+
+    //                 if((h_cooDst[i]%m)==0){
+    //                     if((h_cooDst[i]+nVdivM)>=nV){
+    //                         h_cooDst[i] = h_cooDst[i]%nVdivM;
+    //                     }else{
+    //                         h_cooDst[i]+=nVdivM;
+    //                     }
+    //                 }
+    //             }
+    //         }
+    //     }
+    // }
+    // else{
         ParsingProp pp(graph::detail::ParsingEnum::NONE);
-        // GraphStd<vert_t, int64_t> graph(UNDIRECTED);
-        graph::GraphStd<int64_t, int64_t> graph(DIRECTED);
-        // graph::GraphStd<vert_t, eoff_t> graph(DIRECTED);
+        graph::GraphStd<int64_t, int64_t> graph(UNDIRECTED);
         graph.read(argv[1],pp,true);
 
-        auto cooGraph = graph.coo_ptr();
-
-        h_cooSrc = new vert_t[2*graph.nE()];
-        h_cooDst = new vert_t[2*graph.nE()];
-
-        #pragma omp parallel for 
-        for(int64_t i=0; i < graph.nE(); i++){
-            // if(i>(graph.nE()-50))
-            //     printf("%ld %ld\n",cooGraph[i].first,cooGraph[i].second);
-            h_cooSrc[i] = cooGraph[i].first;
-            h_cooDst[i] = cooGraph[i].second;
-            h_cooSrc[i+graph.nE()] = cooGraph[i].second;
-            h_cooDst[i+graph.nE()] = cooGraph[i].first;
-        }
         nV = graph.nV();
-        nE = 2*graph.nE();
-
-        printf("Number of vertices is : %ld\n", nV);
-        printf("Number of edges is    : %ld\n", nE);
+        nE = graph.nE();
 
 
-        if(reOrgFlag){
+        h_cooDst=nullptr;
+        h_cooSrc=nullptr;
+       if(reOrgFlag){
             printf("REORDERING!!\n");
             for(int mul= 1; mul < 10; mul++)
             {
@@ -146,8 +189,10 @@ int main(int argc, char* argv[]) {
                 }
             }
         }
-    }
-
+ 
+        printf("Number of vertices is : %ld\n", nV);
+        printf("Number of edges is    : %ld\n", nE);
+        fflush(stdout);
 
     omp_set_num_threads(maxGPUs);
     hornets_nest::gpu::initializeRMMPoolAllocation(0,maxGPUs);//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
@@ -186,6 +231,7 @@ int main(int argc, char* argv[]) {
     // for(int f=0; f<(int)fanoutArray.size() ; f++){
 
     for(int g=minGPUs; g<=maxGPUs;g++){
+        cudaSetDevice(0);
         numGPUs=g;
 
         int logNumGPUsArray[17] = {0,1,2,2,2,3,3,3,3,4,4,4,4,4,4,4,4};
@@ -215,64 +261,110 @@ int main(int argc, char* argv[]) {
         }
             // h_unSortedOffsets[0] = h_SortedOffsets[0] = 0;
 
+        vert_t* localOffset=nullptr;
+        vert_t* edges=nullptr;
 
-        #pragma omp parallel
-        {      
-            int64_t thread_id = omp_get_thread_num ();
-            cudaSetDevice(thread_id);
-            cudaMalloc(&d_unSortedSrc[thread_id],sizeof(vertPtr)*edgesPerGPU);
-            cudaMalloc(&d_unSortedDst[thread_id],sizeof(vertPtr)*edgesPerGPU);
-            // gpu::allocate(d_unSortedSrc[thread_id],edgesPerGPU);
-            // gpu::allocate(d_unSortedDst[thread_id],edgesPerGPU);
+        if(0){
+            #pragma omp parallel
+            {      
+                int64_t thread_id = omp_get_thread_num ();
+                cudaSetDevice(thread_id);
+                cudaMalloc(&d_unSortedSrc[thread_id],sizeof(vertPtr)*edgesPerGPU);
+                cudaMalloc(&d_unSortedDst[thread_id],sizeof(vertPtr)*edgesPerGPU);
+                // gpu::allocate(d_unSortedSrc[thread_id],edgesPerGPU);
+                // gpu::allocate(d_unSortedDst[thread_id],edgesPerGPU);
 
-            int64_t startEdge = thread_id*edgesPerGPU;
-            int64_t stopEdge  = (thread_id+1)*edgesPerGPU;
+                int64_t startEdge = thread_id*edgesPerGPU;
+                int64_t stopEdge  = (thread_id+1)*edgesPerGPU;
 
-            if(thread_id == (numGPUs-1))
-                stopEdge = nE;
+                if(thread_id == (numGPUs-1))
+                    stopEdge = nE;
 
-            h_unSortedLengths[thread_id]=stopEdge-startEdge;
-            h_unSortedOffsets[thread_id+1]=stopEdge;
+                h_unSortedLengths[thread_id]=stopEdge-startEdge;
+                h_unSortedOffsets[thread_id+1]=stopEdge;
 
-            #pragma omp barrier
+                #pragma omp barrier
 
-            printf("****%ld %ld %ld %ld\n", thread_id,startEdge,stopEdge,stopEdge-startEdge);
-            fflush(stdout);
+                printf("****%ld %ld %ld %ld\n", thread_id,startEdge,stopEdge,stopEdge-startEdge);
+                fflush(stdout);
 
-            cudaMemcpy(d_unSortedSrc[thread_id], h_cooSrc+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
-            cudaMemcpy(d_unSortedDst[thread_id], h_cooDst+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
-            #pragma omp barrier
+                cudaMemcpy(d_unSortedSrc[thread_id], h_cooSrc+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
+                cudaMemcpy(d_unSortedDst[thread_id], h_cooDst+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
+                #pragma omp barrier
+            }
+            cudaSetDevice(0);
+
+            cusort::sort_key_value(d_unSortedDst,d_unSortedSrc,h_unSortedOffsets,
+                          d_SortedDst,d_SortedSrc,h_SortedOffsets, (int)numGPUs);
+            omp_set_num_threads(numGPUs);
+            cudaSetDevice(0);
+
+            #pragma omp parallel
+            {      
+                int64_t thread_id = omp_get_thread_num ();
+                cudaSetDevice(thread_id);
+
+                cudaFree(d_unSortedSrc[thread_id]);
+                d_unSortedSrc[thread_id] = d_SortedSrc[thread_id];
+                d_SortedSrc[thread_id] = nullptr;
+
+                cudaFree(d_unSortedDst[thread_id]);
+                d_unSortedDst[thread_id] = d_SortedDst[thread_id];
+                d_SortedDst[thread_id] = nullptr;
+                h_unSortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
+                h_unSortedOffsets[thread_id] = h_SortedOffsets[thread_id];
+                #pragma omp barrier
+            }
+
+            cudaSetDevice(0);
+            cusort::sort_key_value(d_unSortedSrc,d_unSortedDst,h_unSortedOffsets,
+                          d_SortedSrc,d_SortedDst,h_SortedOffsets, (int)numGPUs);
+            cudaSetDevice(0);
+
+            omp_set_num_threads(numGPUs);
+        }else if(0){
+
+            h_unSortedOffsets[numGPUs] = h_SortedOffsets[numGPUs] = 0;
+
+
+            #pragma omp parallel
+            {      
+                int64_t thread_id = omp_get_thread_num ();
+                cudaSetDevice(thread_id);
+                cudaMalloc(&d_unSortedSrc[thread_id],sizeof(vertPtr)*edgesPerGPU);
+                cudaMalloc(&d_unSortedDst[thread_id],sizeof(vertPtr)*edgesPerGPU);
+                // gpu::allocate(d_unSortedSrc[thread_id],edgesPerGPU);
+                // gpu::allocate(d_unSortedDst[thread_id],edgesPerGPU);
+
+                int64_t startEdge = thread_id*edgesPerGPU;
+                int64_t stopEdge  = (thread_id+1)*edgesPerGPU;
+
+                if(thread_id == (numGPUs-1))
+                    stopEdge = nE;
+
+                h_unSortedLengths[thread_id]=stopEdge-startEdge;
+                h_unSortedOffsets[thread_id+1]=stopEdge;
+
+                #pragma omp barrier
+
+                // printf("****%ld %ld %ld %ld\n", thread_id,startEdge,stopEdge,stopEdge-startEdge);
+                // fflush(stdout);
+
+                cudaMemcpy(d_unSortedSrc[thread_id], h_cooSrc+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
+                cudaMemcpy(d_unSortedDst[thread_id], h_cooDst+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
+                #pragma omp barrier
+            }
+
+            cudaSetDevice(0);
+            cusort::sort_key_value(d_unSortedSrc,d_unSortedDst,h_unSortedOffsets,
+                          d_SortedSrc,d_SortedDst,h_SortedOffsets, (int)numGPUs);
+            cudaSetDevice(0);
+
+            omp_set_num_threads(numGPUs);
+        }else{
+
         }
         cudaSetDevice(0);
-
-        cusort::sort_key_value(d_unSortedDst,d_unSortedSrc,h_unSortedOffsets,
-                      d_SortedDst,d_SortedSrc,h_SortedOffsets, (int)numGPUs);
-        omp_set_num_threads(numGPUs);
-        cudaSetDevice(0);
-
-        #pragma omp parallel
-        {      
-            int64_t thread_id = omp_get_thread_num ();
-            cudaSetDevice(thread_id);
-
-            cudaFree(d_unSortedSrc[thread_id]);
-            d_unSortedSrc[thread_id] = d_SortedSrc[thread_id];
-            d_SortedSrc[thread_id] = nullptr;
-
-            cudaFree(d_unSortedDst[thread_id]);
-            d_unSortedDst[thread_id] = d_SortedDst[thread_id];
-            d_SortedDst[thread_id] = nullptr;
-            h_unSortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
-            h_unSortedOffsets[thread_id] = h_SortedOffsets[thread_id];
-            #pragma omp barrier
-        }
-        
-        cudaSetDevice(0);
-        cusort::sort_key_value(d_unSortedSrc,d_unSortedDst,h_unSortedOffsets,
-                      d_SortedSrc,d_SortedDst,h_SortedOffsets, (int)numGPUs);
-        cudaSetDevice(0);
-
-        omp_set_num_threads(numGPUs);
 
 
         using HornetGraphPtr = HornetGraph*;
@@ -287,100 +379,161 @@ int main(int argc, char* argv[]) {
             int64_t thread_id = omp_get_thread_num ();
             cudaSetDevice(thread_id);
 
-            h_SortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
+            if(0){
+                h_SortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
 
-            gpu::free(d_unSortedSrc[thread_id]);  d_unSortedSrc[thread_id] = nullptr;
-            gpu::free(d_unSortedDst[thread_id]);  d_unSortedDst[thread_id] = nullptr;
+                gpu::free(d_unSortedSrc[thread_id]);  d_unSortedSrc[thread_id] = nullptr;
+                gpu::free(d_unSortedDst[thread_id]);  d_unSortedDst[thread_id] = nullptr;
 
-            vert_t first_vertex;
-            cudaMemcpy(&first_vertex,d_SortedSrc[thread_id],sizeof(vert_t), cudaMemcpyDeviceToHost); 
-           #pragma omp barrier
+                vert_t first_vertex;
+                cudaMemcpy(&first_vertex,d_SortedSrc[thread_id],sizeof(vert_t), cudaMemcpyDeviceToHost); 
+               // #pragma omp barrier
 
-            if(thread_id!=0){
-                vert_t last_vertex;
-                cudaMemcpy(&last_vertex,d_SortedSrc[thread_id-1]+h_SortedLengths[thread_id-1]-1,sizeof(vert_t), cudaMemcpyDeviceToHost); 
+                // if(thread_id!=0){
+                //     vert_t last_vertex;
+                //     cudaMemcpy(&last_vertex,d_SortedSrc[thread_id-1]+h_SortedLengths[thread_id-1]-1,sizeof(vert_t), cudaMemcpyDeviceToHost); 
 
-                printf("####%ld %d %d\n", thread_id,first_vertex,last_vertex);
+                //     printf("####%ld %d %d\n", thread_id,first_vertex,last_vertex);
 
-            }
+                // }
 
-            edgeSplits[thread_id] = first_vertex;
+                edgeSplits[thread_id] = first_vertex;
 
-            if(thread_id==0)
-                edgeSplits[0]=0;
-            if(thread_id==(numGPUs-1))
-                edgeSplits[numGPUs] = nV+1; // nV+1 so that we can queue up the last vertex as well.
+                if(thread_id==0)
+                    edgeSplits[0]=0;
+                if(thread_id==(numGPUs-1))
+                    edgeSplits[numGPUs] = nV+1; // nV+1 so that we can queue up the last vertex as well.
 
-           #pragma omp barrier
-            int64_t my_start,my_end;
-            my_start  = edgeSplits[thread_id];
-            my_end  = edgeSplits[thread_id+1];
+               #pragma omp barrier
+                // int64_t my_start,my_end;
+                // my_start  = edgeSplits[thread_id];
+                // my_end  = edgeSplits[thread_id+1];
 
-            printf("^^^^%ld %ld %ld %lld\n", thread_id,my_start,my_end,h_SortedLengths[thread_id]);
-            fflush(stdout);
-
-
-            vert_t *h_EdgesSrc,*h_EdgesDst;
-            int32_t edgeListLength = h_SortedLengths[thread_id];
-
-            eoff_t *h_offsetArray,*h_counterArray; 
-            h_offsetArray   = new eoff_t[nV+1]; 
-            h_counterArray   = new eoff_t[nV+1]; 
-
-            for(vert_t v=0; v<=(nV); v++){
-                h_offsetArray[v]=0;
-                h_counterArray[v]=0;
-            }
-            // printf("allocating memory host side\n");fflush(stdout);
-            h_EdgesSrc         = new vert_t[edgeListLength];
-            h_EdgesDst         = new vert_t[edgeListLength];
-
-            cudaMemcpy(h_EdgesSrc, d_SortedSrc[thread_id],sizeof(vert_t)*edgeListLength,cudaMemcpyDeviceToHost);
-            cudaMemcpy(h_EdgesDst, d_SortedDst[thread_id],sizeof(vert_t)*edgeListLength,cudaMemcpyDeviceToHost);
-
-            // printf("freeing memory device side\n");fflush(stdout);
-            cudaFree(d_SortedSrc[thread_id]);  d_SortedSrc[thread_id] = nullptr;
-            cudaFree(d_SortedDst[thread_id]);  d_SortedDst[thread_id] = nullptr;
-
-           #pragma omp barrier
-
-            for(vert_t e=0; e<(vert_t)(edgeListLength); e++){
-                h_counterArray[h_EdgesSrc[e]]++;
-            }
-
-            for(vert_t v=0; v<nV; v++){
-                h_offsetArray[v+1]=h_offsetArray[v]+h_counterArray[v];
-            }
+                // printf("^^^^%ld %ld %ld %lld\n", thread_id,my_start,my_end,h_SortedLengths[thread_id]);
+                // fflush(stdout);
 
 
-            // printf("CSR on the host is ready\n");fflush(stdout);
-            #pragma omp barrier
+                vert_t *h_EdgesSrc,*h_EdgesDst;
+                int32_t edgeListLength = h_SortedLengths[thread_id];
 
-            HornetInit hornet_init(nV,h_SortedLengths[thread_id], h_offsetArray,h_EdgesDst);
+                eoff_t *h_offsetArray,*h_counterArray; 
+                h_offsetArray   = new eoff_t[nV+1]; 
+                h_counterArray   = new eoff_t[nV+1]; 
 
-            hornetArray[thread_id] = new HornetGraph(hornet_init);
-            // printf("Hornet created\n");fflush(stdout);
+                for(vert_t v=0; v<=(nV); v++){
+                    h_offsetArray[v]=0;
+                    h_counterArray[v]=0;
+                }
+                // printf("allocating memory host side\n");fflush(stdout);
+                h_EdgesSrc         = new vert_t[edgeListLength];
+                h_EdgesDst         = new vert_t[edgeListLength];
 
-            // int stam=0;
-            // stam+=scanf("%d\n",&stam);
+                cudaMemcpy(h_EdgesSrc, d_SortedSrc[thread_id],sizeof(vert_t)*edgeListLength,cudaMemcpyDeviceToHost);
+                cudaMemcpy(h_EdgesDst, d_SortedDst[thread_id],sizeof(vert_t)*edgeListLength,cudaMemcpyDeviceToHost);
 
-            printf("HNT-INFO - %ld, %lld, %d, %d\n", thread_id,h_SortedLengths[thread_id], h_offsetArray[nV],hornetArray[thread_id]->nE());
+                // printf("freeing memory device side\n");fflush(stdout);
+                cudaFree(d_SortedSrc[thread_id]);  d_SortedSrc[thread_id] = nullptr;
+                cudaFree(d_SortedDst[thread_id]);  d_SortedDst[thread_id] = nullptr;
 
-            #pragma omp barrier
-            maxArrayDegree[thread_id]   = hornetArray[thread_id]->max_degree();
-            maxArrayId[thread_id]       = hornetArray[thread_id]->max_degree_id();
+               #pragma omp barrier
 
-            // stam+=scanf("%d\n",&stam);
+                for(vert_t e=0; e<(vert_t)(edgeListLength); e++){
+                    h_counterArray[h_EdgesSrc[e]]++;
+                }
 
-            // printf("freeing memory SIDE side\n");fflush(stdout);
+                for(vert_t v=0; v<nV; v++){
+                    h_offsetArray[v+1]=h_offsetArray[v]+h_counterArray[v];
+                }
 
-            delete[] h_counterArray;
-            delete[] h_offsetArray;
-            delete[] h_EdgesSrc;
-            delete[] h_EdgesDst;
-            // printf("HOST MEMORY FREE\n");fflush(stdout);
+
+                // printf("CSR on the host is ready\n");fflush(stdout);
+                #pragma omp barrier
+
+                HornetInit hornet_init(nV,h_SortedLengths[thread_id], h_offsetArray,h_EdgesDst);
+
+                hornetArray[thread_id] = new HornetGraph(hornet_init);
+                // printf("Hornet created\n");fflush(stdout);
+
+                // int stam=0;
+                // stam+=scanf("%d\n",&stam);
+
+                // printf("HNT-INFO - %ld, %lld, %d, %d\n", thread_id,h_SortedLengths[thread_id], h_offsetArray[nV],hornetArray[thread_id]->nE());
+
+                #pragma omp barrier
+                maxArrayDegree[thread_id]   = hornetArray[thread_id]->max_degree();
+                maxArrayId[thread_id]       = hornetArray[thread_id]->max_degree_id();
+
+                // stam+=scanf("%d\n",&stam);
+
+                // printf("freeing memory SIDE side\n");fflush(stdout);
+
+                delete[] h_counterArray;
+                delete[] h_offsetArray;
+                delete[] h_EdgesSrc;
+                delete[] h_EdgesDst;
+                // printf("HOST MEMORY FREE\n");fflush(stdout);
             // stam+=scanf("%d\n",&stam)
-            
+            }
+            else{
+
+                int64_t thread_id = omp_get_thread_num ();
+                cudaSetDevice(thread_id);
+
+                int64_t upperNV = nV;
+                if(upperNV%numGPUs){
+                    upperNV = nV - (nV%numGPUs) + numGPUs;
+                }
+                int64_t upperNE = nE;
+                if(upperNE%numGPUs){
+                    upperNE = nE - (nE%numGPUs) + numGPUs;
+                }
+
+                int64_t edgeVal = ((thread_id+1L) * upperNE) /numGPUs ;
+                if (edgeVal>nE)
+                    edgeVal = nE;
+                int64_t zero=0;
+                edgeSplits[thread_id+1] = vertexBinarySearch(graph.csr_out_offsets(),zero, nV+1L, (edgeVal));
+
+                if(thread_id == 0 )
+                    edgeSplits[0]=0;
+                #pragma omp barrier
+
+                int64_t my_start,my_end, my_edges;
+
+                my_start = edgeSplits[thread_id];
+                my_end  = edgeSplits[thread_id+1];
+                my_edges = graph.csr_out_offsets()[my_end]-graph.csr_out_offsets()[my_start];
+
+                localOffset = (vert_t*)malloc(sizeof(vert_t)*(nV+1));
+                edges       = (vert_t*)malloc(sizeof(vert_t)*(my_edges));
+
+                int64_t i=0;
+                for(int64_t u=my_start; u<my_end; u++){
+                    int64_t d_size=graph.csr_out_offsets()[u+1]-graph.csr_out_offsets()[u];
+                    for (int64_t d=0; d<d_size; d++){
+                        edges[i++]=(vert_t) graph.csr_out_edges()[(graph.csr_out_offsets()[u]+d)];
+                    }
+                }
+
+                // printf("%ld %ld %ld %ld %ld %ld\n", thread_id,my_start,my_end, my_edges,graph.csr_out_offsets()[my_start],graph.csr_out_offsets()[my_end]);
+                // fflush(stdout);
+
+                for(int64_t v=0; v<(nV+1); v++){
+                    localOffset[v]=0;
+                }
+                for(int64_t v=(my_start); v<nV; v++){
+                    localOffset[v+1] = localOffset[v] + (graph.csr_out_offsets()[v+1]-graph.csr_out_offsets()[v]);
+                }
+
+                HornetInit hornet_init(nV,my_edges, localOffset,edges);
+
+                hornetArray[thread_id] = new HornetGraph(hornet_init);
+
+                #pragma omp barrier
+                maxArrayDegree[thread_id]   = hornetArray[thread_id]->max_degree();
+                maxArrayId[thread_id]       = hornetArray[thread_id]->max_degree_id();
+
+            }
         }
 
         vert_t max_d    = maxArrayDegree[0];
@@ -431,7 +584,6 @@ int main(int argc, char* argv[]) {
                         if(root>nV)
                             root=0;
                     }
-
 
                     cudaEventRecord(start); 
                     cudaEventSynchronize(start); 
@@ -557,6 +709,11 @@ int main(int argc, char* argv[]) {
 
         cudaSetDevice(0);
 
+        if(localOffset!=nullptr)
+            delete[] localOffset; 
+        if(edges!=nullptr)
+            delete[] edges;
+
         delete[] h_unSortedLengths; delete[] h_SortedLengths;
         delete[] h_unSortedOffsets; delete[] h_SortedOffsets;
         delete[] d_unSortedSrc; delete[] d_unSortedDst;
@@ -584,9 +741,10 @@ int main(int argc, char* argv[]) {
         }
     }
 
-
-    delete[] h_cooSrc;
-    delete[] h_cooDst;
+    if(h_cooSrc!=nullptr)
+        delete[] h_cooSrc;
+    if(h_cooDst!=nullptr)
+        delete[] h_cooDst;
 
 
     hornets_nest::gpu::finalizeRMMPoolAllocation(maxGPUs);
