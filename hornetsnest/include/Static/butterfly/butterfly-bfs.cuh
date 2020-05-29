@@ -8,8 +8,8 @@ namespace hornets_nest {
 
 using vert_t = int;
 using HornetInit  = ::hornet::HornetInit<vert_t>;
-using HornetGraph = ::hornet::gpu::Hornet<vert_t>;
-// using HornetGraph = ::hornet::gpu::HornetStatic<vert_t>;
+// using HornetGraph = ::hornet::gpu::Hornet<vert_t>;
+using HornetGraph = ::hornet::gpu::HornetStatic<vert_t>;
 
 struct butterflyData {
     degree_t currLevel;
@@ -34,7 +34,7 @@ struct butterflyData {
     vert_t*      d_bins;
     vert_t*      d_binsPrefix;
 
-    bool*       d_Marked;
+    // bool*       d_Marked;
     vert_t*       d_dist;
 };
 
@@ -66,7 +66,7 @@ public:
     void oneIterationScan(degree_t level,bool lrb=false);
 
     void oneIterationComplete();
-    void communication(butterfly_communication* bfComm, int numGPUs,int iteration, bool needSort=false);
+    void communication(butterfly_communication* bfComm, int numGPUs,int iteration);
 
     void reset()    override;
     void run()      override;

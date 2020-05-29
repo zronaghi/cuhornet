@@ -12,7 +12,7 @@ struct InitBFS {
 
 
     OPERATOR(vert_t src) {
-        bfs().d_Marked[src] = false;
+        // bfs().d_Marked[src] = false;
         bfs().d_dist[src] = INT32_MAX;
     }
 };
@@ -58,6 +58,41 @@ __global__ void NeighborUpdates_QueueingKernel(
     }
 
 }
+
+template<bool second, typename HornetDevice>
+__global__ void NeighborUpdates_QueueingKernel_NoAtomics(
+  HornetDevice hornet , 
+  HostDeviceVar<butterflyData> bfs, 
+  int N,
+  degree_t currLevel,
+  vert_t lower,
+  vert_t upper,
+  vert_t start=0){
+    int k = threadIdx.x + blockIdx.x *blockDim.x;
+    if(k>=N)
+        return;
+
+    vert_t dst = bfs().d_buffer[k+start];
+
+    if(!second){
+        if(bfs().d_dist[dst] == INT32_MAX){
+
+            bfs().d_dist[dst]=currLevel;
+
+            bfs().queueRemote.insert(dst);
+            if (dst >= bfs().lower && dst <bfs().upper){
+                bfs().queueLocal.insert(dst);            
+            }
+        }        
+    }else{
+        if (dst >= bfs().lower && dst <bfs().upper && bfs().d_dist[dst] == INT32_MAX){
+            bfs().d_dist[dst]=currLevel;
+            bfs().queueLocal.insert(dst);
+        }
+    }
+
+}
+
 
 struct NeighborUpdates {
     HostDeviceVar<butterflyData> bfs;
