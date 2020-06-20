@@ -20,6 +20,8 @@
 #include "Static/SpGEMM/spgemm.cuh"
 #include "Static/SpGEMM/spgemm-Operators.cuh"
 
+#include <vector>
+
 using namespace timer;
 using namespace hornets_nest;
 
@@ -124,6 +126,10 @@ int exec(int argc, char* argv[]) {
     //                                graph.csr_out_offsets(),
     //                                graph.csr_out_edges());
 
+
+
+
+
     graph::GraphStd<vid_t, eoff_t>* graph;
 
     if(directed){
@@ -141,6 +147,9 @@ int exec(int argc, char* argv[]) {
                                    graph->csr_in_offsets(),
                                    graph->csr_in_edges());
 
+    std::vector<wgt0_t> edge_meta_0(graph->nE(), 0);
+    // hornet_init.insertEdgeData(edge_meta_0.data());
+    // hornet_init_inverse.insertEdgeData(edge_meta_0.data());
 
     // Useful code for checking if the inverse graph was also sorted -- it was not!
     // for(int v=0; v < graph->nV(); v++){

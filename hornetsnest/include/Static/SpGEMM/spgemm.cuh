@@ -10,11 +10,17 @@ namespace hornets_nest {
 using triangle_t = int;
 using vid_t = int;
 
-using HornetGraph = ::hornet::gpu::Hornet<vid_t>;
-using HornetInit  = ::hornet::HornetInit<vid_t>;
+// using HornetGraph = ::hornet::gpu::Hornet<vid_t>;
+// using HornetInit  = ::hornet::HornetInit<vid_t>;
+// using UpdatePtr   = ::hornet::BatchUpdatePtr<vid_t, hornet::EMPTY, hornet::DeviceType::DEVICE>;
+// using Update      = ::hornet::gpu::BatchUpdate<vid_t>;
 
-using UpdatePtr   = ::hornet::BatchUpdatePtr<vid_t, hornet::EMPTY, hornet::DeviceType::DEVICE>;
-using Update      = ::hornet::gpu::BatchUpdate<vid_t>;
+using wgt0_t = vid_t;
+using HornetInit   = ::hornet::HornetInit<vid_t, hornet::EMPTY, hornet::TypeList<wgt0_t>>;
+using HornetGraph  = hornet::gpu::Hornet<vid_t, hornet::EMPTY, hornet::TypeList<wgt0_t>>;
+using UpdatePtr    = hornet::BatchUpdatePtr<vid_t, hornet::TypeList<wgt0_t>, hornet::DeviceType::DEVICE>;
+using Update       = hornet::gpu::BatchUpdate<vid_t, hornet::TypeList<wgt0_t>>;
+
 
 //==============================================================================
 

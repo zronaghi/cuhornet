@@ -215,15 +215,20 @@ __global__ void forAllEdgesAdjUnionImbalancedKernelSpGEMM(hornetDevice hornetDev
         degree_t v_len = sourceSmaller ? colLen : rowLen;
         auto u_vtx = sourceSmaller ? row_vtx : col_vtx;
         auto v_vtx = sourceSmaller ? col_vtx : row_vtx;
+        wgt0_t *u_weight, *v_weight; 
         // vid_t* u_nodes = hornet.vertex(u).neighbor_ptr();
         // vid_t* v_nodes = hornet.vertex(v).neighbor_ptr();
         vid_t *u_nodes, *v_nodes;
         if(sourceSmaller){
             u_nodes = hornetDeviceA.vertex(u).neighbor_ptr();
             v_nodes = hornetDeviceB.vertex(v).neighbor_ptr();
+            u_weight = hornetDeviceA.vertex(u).template field_ptr <0> ();
+            v_weight = hornetDeviceB.vertex(v).template field_ptr <0> ();
         }else{
             u_nodes = hornetDeviceB.vertex(u).neighbor_ptr();
             v_nodes = hornetDeviceA.vertex(v).neighbor_ptr();
+            u_weight = hornetDeviceB.vertex(u).template field_ptr <0> ();
+            v_weight = hornetDeviceA.vertex(v).template field_ptr <0> ();
         }
 
         int ui_begin, vi_begin, ui_end, vi_end;
@@ -636,7 +641,7 @@ void forAllAdjUnions(HornetGraph&    hornetA,
         cudaMemcpy(&h_batchSizeCounter, d_batchSizeCounter, sizeof(vid_t), cudaMemcpyDeviceToHost);
 
         if(h_batchSizeCounter>0){
-            UpdatePtr ptr(h_batchSizeCounter, d_src, d_dest);
+            UpdatePtr ptr(h_batchSizeCounter, d_src, d_dest,NULL);
             Update batch_update(ptr);
             hornetC.insert(batch_update,false,false);
 
