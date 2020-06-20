@@ -122,13 +122,19 @@ __global__ void forAllEdgesAdjUnionBalancedKernelSpGEMM(hornetDevice hornetDevic
 
         // vid_t* u_nodes = hornet.vertex(u).neighbor_ptr();
         // vid_t* v_nodes = hornet.vertex(v).neighbor_ptr();
+        wgt0_t *u_weight, *v_weight; 
+
         vid_t *u_nodes, *v_nodes;
         if(sourceSmaller){
             u_nodes = hornetDeviceA.vertex(u).neighbor_ptr();
             v_nodes = hornetDeviceB.vertex(v).neighbor_ptr();
+            u_weight = hornetDeviceA.vertex(u).template field_ptr <0> ();
+            v_weight = hornetDeviceB.vertex(v).template field_ptr <0> ();
         }else{
             u_nodes = hornetDeviceB.vertex(u).neighbor_ptr();
             v_nodes = hornetDeviceA.vertex(v).neighbor_ptr();
+            u_weight = hornetDeviceB.vertex(u).template field_ptr <0> ();
+            v_weight = hornetDeviceA.vertex(v).template field_ptr <0> ();
         }
 
         int work_per_thread = total_work/threads_per_union;
@@ -198,7 +204,7 @@ __global__ void forAllEdgesAdjUnionBalancedKernelSpGEMM(hornetDevice hornetDevic
                 flag2 = flag+2;
 
 
-            op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, v_nodes+vi_begin, v_nodes+vi_end, flag2, startRow);
+            op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, u_weight ,v_nodes+vi_begin, v_nodes+vi_end, v_weight, flag2, startRow);
         }
     }
 }
