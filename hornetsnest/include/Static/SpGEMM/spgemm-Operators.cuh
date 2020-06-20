@@ -204,7 +204,7 @@ __global__ void forAllEdgesAdjUnionBalancedKernelSpGEMM(hornetDevice hornetDevic
                 flag2 = flag+2;
 
 
-            op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, u_weight ,v_nodes+vi_begin, v_nodes+vi_end, v_weight, flag2, startRow);
+            op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, u_weight + ui_begin,v_nodes+vi_begin, v_nodes+vi_end, v_weight + vi_begin, flag2, startRow);
         }
     }
 }

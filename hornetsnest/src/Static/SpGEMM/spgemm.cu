@@ -248,7 +248,7 @@ __global__ void forAllEdgesAdjUnionImbalancedKernelSpGEMM(hornetDevice hornetDev
 
 
         if (ui_end < u_len) {
-            op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, u_weight, v_nodes+vi_begin, v_nodes+vi_end, v_weight, flag2, startRow);
+            op(u_vtx, v_vtx, u_nodes+ui_begin, u_nodes+ui_end, u_weight+ui_begin, v_nodes+vi_begin, v_nodes+vi_end, v_weight+vi_begin, flag2, startRow);
         }
     }
 }
@@ -298,11 +298,12 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
 		}
         if((FLAG&1)==0){
             int comp_equals, comp1, comp2, ui_bound, vi_bound;
+            int vpos=0, upos=0;
             // printf("Intersecting %d, %d: %d -> %d, %d -> %d\n", u.id(), v.id(), *ui_begin, *ui_end, *vi_begin, *vi_end);
             while (vi_begin <= vi_end && ui_begin <= ui_end) {
                 comp_equals = (*ui_begin == *vi_begin);
                 // count += comp_equals;
-                count += comp_equals*(1);
+                count += comp_equals*(u_weight[upos]*v_weight[vpos]);
                 comp1 = (*ui_begin >= *vi_begin);
                 comp2 = (*ui_begin <= *vi_begin);
                 ui_bound = (ui_begin == ui_end);
@@ -310,13 +311,16 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
                 // early termination
                 if ((ui_bound && comp2) || (vi_bound && comp1))
                     break;
-                if ((comp1 && !vi_bound) || ui_bound)
-                    vi_begin += 1;
-                if ((comp2 && !ui_bound) || vi_bound)
-                    ui_begin += 1;
+                if ((comp1 && !vi_bound) || ui_bound){
+                    vi_begin += 1;vpos++;
+                }
+                if ((comp2 && !ui_bound) || vi_bound){
+                    ui_begin += 1;upos++;
+                }
             }
         } else {
             vid_t vi_low, vi_high, vi_mid;
+            int u_pos = 0; // using this field to get index for the weight
             while (ui_begin <= ui_end) {
                 auto search_val = *ui_begin;
                 vi_low = 0;
@@ -325,7 +329,8 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
                     vi_mid = (vi_low+vi_high)>>1;
                     auto comp = (*(vi_begin+vi_mid) - search_val);
                     if (!comp) {
-                        count += 1;
+                        // count += 1;//u_weight[u_pos]*v_weight[vi_mid];
+                        count +=u_weight[u_pos]*v_weight[vi_mid];
                         break;
                     }
                     int geq=comp>0;
@@ -338,6 +343,7 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
                     // }
                 }
                 ui_begin += 1;
+                u_pos++;
             }
         }
 
