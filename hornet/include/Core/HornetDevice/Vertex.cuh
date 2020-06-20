@@ -115,6 +115,22 @@ class Vertex<
     HOST_DEVICE
     vid_t* neighbor_ptr(void) const;
 
+    template<unsigned N>//Which field am I interested in?
+    HOST_DEVICE
+    //In the list of types EdgeMetaType*..., select the Nth item type
+    typename std::enable_if<
+        (N < sizeof...(EdgeMetaTypes)),
+        typename xlib::SelectType<N, EdgeMetaTypes*...>::type>::type
+    field_ptr(void) const {
+      using field_ptr_type = typename xlib::SelectType<N, EdgeMetaTypes*...>::type;
+      //Beginning of the field type for the whole edge block array
+      field_ptr_type edge_block_field_ptr = reinterpret_cast<field_ptr_type>(
+              edge_block_ptr() +
+              xlib::FirstNSizeSum<N+1, vid_t, EdgeMetaTypes...>::value * edges_per_block());
+      //Add the vertex offset to get the field pointer of this vertex
+      return edge_block_field_ptr + vertex_offset();
+    }
+
 };
 
 }
