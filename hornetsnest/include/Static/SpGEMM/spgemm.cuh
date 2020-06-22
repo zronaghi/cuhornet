@@ -22,7 +22,7 @@ using HornetInit   = ::hornet::HornetInit<vid_t, hornet::EMPTY, hornet::TypeList
 using HornetGraph  = hornet::gpu::Hornet<vid_t, hornet::EMPTY, hornet::TypeList<wgt0_t>>;
 using UpdatePtr    = hornet::BatchUpdatePtr<vid_t, hornet::TypeList<wgt0_t>, hornet::DeviceType::DEVICE>;
 using Update       = hornet::gpu::BatchUpdate<vid_t, hornet::TypeList<wgt0_t>>;
-
+using HornetGraphPtr = HornetGraph*;
 
 //==============================================================================
 
@@ -30,10 +30,13 @@ using Update       = hornet::gpu::BatchUpdate<vid_t, hornet::TypeList<wgt0_t>>;
 //class SpGEMM : public StaticAlgorithm<HornetGraph> {
 class SpGEMM {
 public:
-    SpGEMM(HornetGraph& hornetA, HornetGraph& hornetB, HornetGraph& hornetC, 
-        int concurrentIntersections, float workFactor, bool sanityCheck);
+    SpGEMM(HornetGraph* hornetA, HornetGraph* hornetB, HornetGraph* hornetC, 
+           int concurrentIntersections, float workFactor, bool sanityCheck);
     ~SpGEMM();
 
+    SpGEMM(HornetGraphPtr* hornetA, HornetGraphPtr* hornetB, HornetGraphPtr* hornetC,
+           int numGPUs, int concurrentIntersections, float workFactor, bool sanityCheck);
+    
     void reset();
     void run();
     void release();
@@ -53,13 +56,14 @@ protected:
    triangle_t* triPerVertex { nullptr };
 
 private:
-    HornetGraph& hornetA;
-    HornetGraph& hornetB;
-    HornetGraph& hornetC;
+    HornetGraph* hornetA;
+    HornetGraph* hornetB;
+    HornetGraph* hornetC;
 
     int concurrentIntersections;
     float workFactor;
     bool sanityCheck;
+    int numGPUs;
 };
 
 //==============================================================================

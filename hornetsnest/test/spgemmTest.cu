@@ -151,18 +151,20 @@ int exec(int argc, char* argv[]) {
     hornet_init.insertEdgeData(edge_meta_0.data());
     hornet_init_inverse.insertEdgeData(edge_meta_0.data());
 
-    // Useful code for checking if the inverse graph was also sorted -- it was not!
-    // for(int v=0; v < graph->nV(); v++){
-    //     auto length = graph->csr_in_offsets()[v+1]-graph->csr_in_offsets()[v];
-    //     auto pos=graph->csr_in_offsets()[v];
-    //     for(int e=1; e < length; e++){
-    //         if(graph->csr_in_edges()[pos+e]<graph->csr_in_edges()[pos+e-1]){
-    //             printf("NOT SORTED\n");
-    //             break;
-    //         }
-    //     }
-    // }
+    int numGPUs = 4;
+    HornetGraphPtr hornetArray[numGPUs];
 
+    omp_set_num_threads(numGPUs);
+
+    #pragma omp parallel
+        {
+            int64_t thread_id = omp_get_thread_num ();
+            cudaSetDevice(thread_id);
+            HornetInit hornet_init(graph->nV(), graph->nE(), graph->csr_out_offsets(),
+                                   graph->csr_out_edges());
+            hornet_init.insertEdgeData(edge_meta_0.data());
+            hornetArray[thread_id] = new HornetGraph(hornet_init);
+        }
 
     HornetGraph hornet_graph_inv(hornet_init_inverse);
     HornetGraph hornet_graph(hornet_init);
@@ -171,7 +173,7 @@ int exec(int argc, char* argv[]) {
     hornet_graph.sort();
     hornet_graph_inv.sort();
 
-    SpGEMM sp(hornet_graph, hornet_graph_inv, hornet_result,concurrentIntersections,workFactor, sanityCheck);
+    SpGEMM sp(&hornet_graph, &hornet_graph_inv, &hornet_result, concurrentIntersections, workFactor, sanityCheck);
     sp.init();
     
 
@@ -187,6 +189,14 @@ int exec(int argc, char* argv[]) {
 
 
     std::cout << "The number of edges in the Output Hornet is " << hornet_result.nE() << std::endl;
+
+    #pragma omp parallel
+        {
+            int64_t thread_id = omp_get_thread_num ();
+            cudaSetDevice(thread_id);
+            delete hornetArray[thread_id];
+        }
+
     //triangle_t deviceTriangleCount = sp.countTriangles();
     //printf("Device triangles: %llu\n", deviceTriangleCount);
   
@@ -194,6 +204,7 @@ int exec(int argc, char* argv[]) {
 }
 
 int main(int argc, char* argv[]) {
+
     int ret = 0;
     hornets_nest::gpu::initializeRMMPoolAllocation();//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
     {//scoping technique to make sure that hornets_nest::gpu::finalizeRMMPoolAllocation is called after freeing all RMM allocations.
