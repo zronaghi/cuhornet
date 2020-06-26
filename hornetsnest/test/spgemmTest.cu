@@ -92,26 +92,28 @@ int exec(int argc, char* argv[]) {
     using namespace graph::parsing_prop;
 
 
-
+    int numGPUs = 1;
+    if(argc>=3)
+        numGPUs = atoi(argv[2]);
 
     int directed=0;
-    if(argc>=3)
-        directed = atoi(argv[2]);
+    if(argc>=4)
+        directed = atoi(argv[3]);
 
     int concurrentIntersections = 1<<26; 
-    if (argc>=4){
-        concurrentIntersections = atoi(argv[3]);
+    if (argc>=5){
+        concurrentIntersections = atoi(argv[4]);
     }
     float workFactor = 100;
-    if (argc>=5){
-        workFactor = atof(argv[4]);
+    if (argc>=6){
+        workFactor = atof(argv[5]);
     }
 
 
     bool sanityCheck=false;
     int iSanityCheck=0;
-    if (argc>=6){
-        iSanityCheck = atoi(argv[5]);
+    if (argc>=7){
+        iSanityCheck = atoi(argv[6]);
         if(iSanityCheck>0)
             sanityCheck = true;
     }
@@ -126,9 +128,8 @@ int exec(int argc, char* argv[]) {
     //                                graph.csr_out_offsets(),
     //                                graph.csr_out_edges());
 
-
-
-
+    // int numGPUs = 4;
+    hornets_nest::gpu::initializeRMMPoolAllocation(0,numGPUs);
 
     graph::GraphStd<vid_t, eoff_t>* graph;
 
@@ -151,8 +152,9 @@ int exec(int argc, char* argv[]) {
     hornet_init.insertEdgeData(edge_meta_0.data());
     hornet_init_inverse.insertEdgeData(edge_meta_0.data());
 
-    int numGPUs = 4;
     HornetGraphPtr hornetArray[numGPUs];
+    HornetGraphPtr hornetArrayInv[numGPUs];
+    HornetGraphPtr hornetArrayResult[numGPUs];
 
     omp_set_num_threads(numGPUs);
 
@@ -160,22 +162,28 @@ int exec(int argc, char* argv[]) {
         {
             int64_t thread_id = omp_get_thread_num ();
             cudaSetDevice(thread_id);
-            HornetInit hornet_init(graph->nV(), graph->nE(), graph->csr_out_offsets(),
-                                   graph->csr_out_edges());
+            HornetInit hornet_init(graph->nV(), graph->nE(), 
+                                   graph->csr_out_offsets(),graph->csr_out_edges());
             hornet_init.insertEdgeData(edge_meta_0.data());
             hornetArray[thread_id] = new HornetGraph(hornet_init);
+
+            HornetInit hornet_init_inverse(graph->nV(), graph->nE(),
+                                           graph->csr_in_offsets(), graph->csr_in_edges());
+            hornet_init_inverse.insertEdgeData(edge_meta_0.data());
+            hornetArrayInv[thread_id] = new HornetGraph(hornet_init_inverse);
+
+            hornetArray[thread_id]->sort();
+            hornetArrayInv[thread_id]->sort();
+            hornetArrayResult[thread_id] = new HornetGraph(graph->nV());            
         }
 
-    HornetGraph hornet_graph_inv(hornet_init_inverse);
-    HornetGraph hornet_graph(hornet_init);
-    HornetGraph hornet_result(graph->nV());
+    // HornetGraph hornet_graph_inv(hornet_init_inverse);
+    // HornetGraph hornet_graph(hornet_init);
+    // HornetGraph hornet_result(graph->nV());
+    // SpGEMM sp(&hornet_graph, &hornet_graph_inv, &hornet_result, concurrentIntersections, workFactor, sanityCheck);
 
-    hornet_graph.sort();
-    hornet_graph_inv.sort();
-
-    SpGEMM sp(&hornet_graph, &hornet_graph_inv, &hornet_result, concurrentIntersections, workFactor, sanityCheck);
+    SpGEMM sp(hornetArray, hornetArrayInv, hornetArrayResult, numGPUs, concurrentIntersections, workFactor, sanityCheck);
     sp.init();
-    
 
     Timer<DEVICE> TM(5);
     //cudaProfilerStart();
@@ -187,19 +195,25 @@ int exec(int argc, char* argv[]) {
     //cudaProfilerStop();
     TM.print("Computation time:");
 
-
-    std::cout << "The number of edges in the Output Hornet is " << hornet_result.nE() << std::endl;
+    int nnz = 0;
+    for (int n=0; n<numGPUs; n++){
+    nnz +=  hornetArrayResult[n]->nE();
+    }
+    std::cout << "The number of edges in the Output Hornet is " << nnz << std::endl;
 
     #pragma omp parallel
         {
             int64_t thread_id = omp_get_thread_num ();
             cudaSetDevice(thread_id);
             delete hornetArray[thread_id];
+            delete hornetArrayInv[thread_id];
+            delete hornetArrayResult[thread_id];
         }
 
     //triangle_t deviceTriangleCount = sp.countTriangles();
     //printf("Device triangles: %llu\n", deviceTriangleCount);
   
+    hornets_nest::gpu::finalizeRMMPoolAllocation(numGPUs);
     return 0;
 }
 

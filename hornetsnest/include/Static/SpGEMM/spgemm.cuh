@@ -34,7 +34,7 @@ public:
            int concurrentIntersections, float workFactor, bool sanityCheck);
     ~SpGEMM();
 
-    SpGEMM(HornetGraphPtr* hornetA, HornetGraphPtr* hornetB, HornetGraphPtr* hornetC,
+    SpGEMM(HornetGraphPtr* hornetAarray, HornetGraphPtr* hornetBarray, HornetGraphPtr* hornetCarray,
            int numGPUs, int concurrentIntersections, float workFactor, bool sanityCheck);
     
     void reset();
@@ -47,7 +47,7 @@ public:
     
     vid_t rowc;
     vid_t colc;
-    vid2_t* vertex_pairs;
+    // vid2_t* vertex_pairs;
     // void copyTCToHost(triangle_t* h_tcs);
 
     // triangle_t countTriangles();
@@ -59,6 +59,10 @@ private:
     HornetGraph* hornetA;
     HornetGraph* hornetB;
     HornetGraph* hornetC;
+
+    HornetGraphPtr* hornetAarray;
+    HornetGraphPtr* hornetBarray;
+    HornetGraphPtr* hornetCarray;
 
     int concurrentIntersections;
     float workFactor;
