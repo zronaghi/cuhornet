@@ -55,7 +55,7 @@ add_executable(kcore        test/KCoreTest.cu)
 add_executable(ktruss       test/KTrussTest.cu)
 add_executable(triangle2    test/TriangleTest2.cu)
 add_executable(pr           test/PageRankTest.cu)
-add_executable(butterfly    test/butterfly-bfsTest.cu test/sort_impl.cuh)
+add_executable(butterfly    test/butterfly-bfsTest.cu)
 
 
 target_link_libraries(dummy         hornetAlg)

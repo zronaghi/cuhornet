@@ -44,9 +44,6 @@
 using namespace std;
 #include <array>
 
-#include "sort.cuh"
-using namespace cusort;
-
 using namespace graph;
 using namespace graph::structure_prop;
 using namespace graph::parsing_prop;
@@ -269,7 +266,7 @@ int main(int argc, char* argv[]) {
         omp_set_num_threads(numGPUs);
 
 
-        int64_t edgesPerGPU = nE/numGPUs + ((nE%numGPUs)?1:0); 
+        // int64_t edgesPerGPU = nE/numGPUs + ((nE%numGPUs)?1:0); 
         // printf("####%ld\n", edgesPerGPU);
 
 
@@ -293,106 +290,6 @@ int main(int argc, char* argv[]) {
         vert_t* localOffset=nullptr;
         vert_t* edges=nullptr;
 
-        if(0){
-            #pragma omp parallel
-            {      
-                int64_t thread_id = omp_get_thread_num ();
-                cudaSetDevice(thread_id);
-                cudaMalloc(&d_unSortedSrc[thread_id],sizeof(vertPtr)*edgesPerGPU);
-                cudaMalloc(&d_unSortedDst[thread_id],sizeof(vertPtr)*edgesPerGPU);
-                // gpu::allocate(d_unSortedSrc[thread_id],edgesPerGPU);
-                // gpu::allocate(d_unSortedDst[thread_id],edgesPerGPU);
-
-                int64_t startEdge = thread_id*edgesPerGPU;
-                int64_t stopEdge  = (thread_id+1)*edgesPerGPU;
-
-                if(thread_id == (numGPUs-1))
-                    stopEdge = nE;
-
-                h_unSortedLengths[thread_id]=stopEdge-startEdge;
-                h_unSortedOffsets[thread_id+1]=stopEdge;
-
-                #pragma omp barrier
-
-                printf("****%ld %ld %ld %ld\n", thread_id,startEdge,stopEdge,stopEdge-startEdge);
-                fflush(stdout);
-
-                cudaMemcpy(d_unSortedSrc[thread_id], h_cooSrc+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
-                cudaMemcpy(d_unSortedDst[thread_id], h_cooDst+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
-                #pragma omp barrier
-            }
-            cudaSetDevice(0);
-
-            cusort::sort_key_value(d_unSortedDst,d_unSortedSrc,h_unSortedOffsets,
-                          d_SortedDst,d_SortedSrc,h_SortedOffsets, (int)numGPUs);
-            omp_set_num_threads(numGPUs);
-            cudaSetDevice(0);
-
-            #pragma omp parallel
-            {      
-                int64_t thread_id = omp_get_thread_num ();
-                cudaSetDevice(thread_id);
-
-                cudaFree(d_unSortedSrc[thread_id]);
-                d_unSortedSrc[thread_id] = d_SortedSrc[thread_id];
-                d_SortedSrc[thread_id] = nullptr;
-
-                cudaFree(d_unSortedDst[thread_id]);
-                d_unSortedDst[thread_id] = d_SortedDst[thread_id];
-                d_SortedDst[thread_id] = nullptr;
-                h_unSortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
-                h_unSortedOffsets[thread_id] = h_SortedOffsets[thread_id];
-                #pragma omp barrier
-            }
-
-            cudaSetDevice(0);
-            cusort::sort_key_value(d_unSortedSrc,d_unSortedDst,h_unSortedOffsets,
-                          d_SortedSrc,d_SortedDst,h_SortedOffsets, (int)numGPUs);
-            cudaSetDevice(0);
-
-            omp_set_num_threads(numGPUs);
-        }else if(0){
-
-            h_unSortedOffsets[numGPUs] = h_SortedOffsets[numGPUs] = 0;
-
-
-            #pragma omp parallel
-            {      
-                int64_t thread_id = omp_get_thread_num ();
-                cudaSetDevice(thread_id);
-                cudaMalloc(&d_unSortedSrc[thread_id],sizeof(vertPtr)*edgesPerGPU);
-                cudaMalloc(&d_unSortedDst[thread_id],sizeof(vertPtr)*edgesPerGPU);
-                // gpu::allocate(d_unSortedSrc[thread_id],edgesPerGPU);
-                // gpu::allocate(d_unSortedDst[thread_id],edgesPerGPU);
-
-                int64_t startEdge = thread_id*edgesPerGPU;
-                int64_t stopEdge  = (thread_id+1)*edgesPerGPU;
-
-                if(thread_id == (numGPUs-1))
-                    stopEdge = nE;
-
-                h_unSortedLengths[thread_id]=stopEdge-startEdge;
-                h_unSortedOffsets[thread_id+1]=stopEdge;
-
-                #pragma omp barrier
-
-                // printf("****%ld %ld %ld %ld\n", thread_id,startEdge,stopEdge,stopEdge-startEdge);
-                // fflush(stdout);
-
-                cudaMemcpy(d_unSortedSrc[thread_id], h_cooSrc+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
-                cudaMemcpy(d_unSortedDst[thread_id], h_cooDst+startEdge, (h_unSortedLengths[thread_id])*sizeof(vert_t), cudaMemcpyHostToDevice);
-                #pragma omp barrier
-            }
-
-            cudaSetDevice(0);
-            cusort::sort_key_value(d_unSortedSrc,d_unSortedDst,h_unSortedOffsets,
-                          d_SortedSrc,d_SortedDst,h_SortedOffsets, (int)numGPUs);
-            cudaSetDevice(0);
-
-            omp_set_num_threads(numGPUs);
-        }else{
-
-        }
         cudaSetDevice(0);
 
 
