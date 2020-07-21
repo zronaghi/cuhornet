@@ -190,9 +190,9 @@ int main(int argc, char* argv[]) {
             }
         }
  
-        printf("Number of vertices is : %ld\n", nV);
-        printf("Number of edges is    : %ld\n", nE);
-        fflush(stdout);
+        // printf("Number of vertices is : %ld\n", nV);
+        // printf("Number of edges is    : %ld\n", nE);
+        // fflush(stdout);
 
     omp_set_num_threads(maxGPUs);
     hornets_nest::gpu::initializeRMMPoolAllocation(0,maxGPUs);//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
@@ -574,11 +574,12 @@ int main(int argc, char* argv[]) {
                 printf("%d,",isLrb);
                 printf("%d,",max_id); // Starting root
 
-                float totalTime = 0;
+                double totalTime = 0;
                 int totatLevels = 0;
                 root=max_id;
-                 // for(int64_t i=0; i<150; i++){
-                for(int64_t i=0; i<10; i++){
+                int totalRoots = 100;
+                double timePerRoot[totalRoots];
+                for(int64_t i=0; i<totalRoots; i++){
                     if(i>0){
                         root++;
                         if(root>nV)
@@ -675,14 +676,26 @@ int main(int argc, char* argv[]) {
                     cudaEventSynchronize(stop);
                     float milliseconds = 0;
                     cudaEventElapsedTime(&milliseconds, start, stop);  
-                    printf("%f,", milliseconds/1000.0);             
-                    std::cout << "Number of levels is : " << front << std::endl;
-                    std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
+                    // printf("%f,", milliseconds/1000.0);
+                    timePerRoot[i] = milliseconds/1000.0;
+                    // std::cout << "Number of levels is : " << front << std::endl;
+                    // std::cout << "The number of traversed vertices is : " << countTraversed << std::endl;
 
                     totatLevels +=front;
-                    totalTime +=milliseconds/1000.0;
                 }
-                printf("!!!! %f %d \n", totalTime, totatLevels);
+
+                std::sort(timePerRoot,timePerRoot+totalRoots);
+                int filterRoots = totalRoots/2;
+                for(int root = 0; root < filterRoots; root++){
+                    totalTime += timePerRoot[filterRoots+totalRoots/4];
+                }
+                printf("%lf,", totalTime);
+                printf("%lf,", totalTime/(double)filterRoots);
+                printf("%d,",  filterRoots);
+                printf("%d,", totatLevels);
+
+
+
 
                 printf("\n");
 

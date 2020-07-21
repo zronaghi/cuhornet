@@ -130,12 +130,14 @@ void butterfly::oneIterationScan(degree_t level,bool lrb){
     if (hd_bfsData().queueLocal.size() > 0) {
         if(!lrb){
             forAllEdges(hornet, hd_bfsData().queueLocal, BFSTopDown_One_Iter { hd_bfsData },load_balancing);
-            cudaEventSynchronize(syncer);
+            // cudaEventSynchronize(syncer);
         }
         if(lrb){
             forAllEdges(hornet, hd_bfsData().queueLocal, BFSTopDown_One_Iter { hd_bfsData },lr_lrb);
-            cudaEventSynchronize(syncer);
+            // cudaEventSynchronize(syncer);
         }
+        cudaDeviceSynchronize();
+        
     }
 
 }
@@ -174,7 +176,8 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
         if(remoteLength>0){
             cudaMemcpy(hd_bfsData().d_buffer,bfComm[copy_gpu].queue_remote_ptr, hd_bfsData().h_bufferSize*sizeof(vert_t),cudaMemcpyDeviceToDevice);            
             forAllVertices(hornet, hd_bfsData().d_buffer, hd_bfsData().h_bufferSize, NeighborUpdates { hd_bfsData });
-            cudaEventSynchronize(syncer);    
+            // cudaEventSynchronize(syncer);    
+            cudaDeviceSynchronize();
 
         }
         
@@ -229,7 +232,8 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
                     hd_bfsData().h_bufferSize+=remoteLength;
                 }
             }
-            cudaEventSynchronize(syncer);    
+            // cudaEventSynchronize(syncer);    
+            cudaDeviceSynchronize();
 
             pos = 0;
             for(int s=0; s<4;s++){
@@ -255,7 +259,8 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
                 }
                 pos+=remoteLength;
             }
-            cudaEventSynchronize(syncer);    
+            // cudaEventSynchronize(syncer);    
+            cudaDeviceSynchronize();
 
         }else{
             int pos=0;
@@ -290,8 +295,8 @@ void butterfly::communication(butterfly_communication* bfComm, int numGPUs, int 
 
                 }
             }
-            cudaEventSynchronize(syncer);    
-
+            // cudaEventSynchronize(syncer);    
+            cudaDeviceSynchronize();
         }
 
     }
