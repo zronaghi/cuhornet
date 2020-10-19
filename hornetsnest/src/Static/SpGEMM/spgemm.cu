@@ -677,7 +677,7 @@ void forAllAdjUnions(HornetGraphPtr*    hornetAarray,
 	        cudaMemcpy(&h_batchSizeCounter, d_batchSizeCounter, sizeof(vid_t), cudaMemcpyDeviceToHost);
 
 	        if(h_batchSizeCounter>0){
-	            UpdatePtr ptr(h_batchSizeCounter, d_src, d_dest,NULL);
+	            UpdatePtr ptr(h_batchSizeCounter, d_src, d_dest,d_IntersectCount);
 	            Update batch_update(ptr);
 	            hornetC->insert(batch_update,false,false);
 
