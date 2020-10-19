@@ -366,16 +366,14 @@ struct OPERATOR_AdjIntersectionCountBalancedSpGEMM {
             }
         }
 
-        // if (blockIdx.x == 0){
-        // 	printf("(u,v) = (%d,%d)", u.id(),v.id());
-        // }
-        // printf("*");
-        if (vSrc == false){ // might need to reorder if and else clauses
-    		atomicAdd(d_IntersectPerVertexPair+(u.id()-startRow)*NV+v.id(), count);
-		}else{
-            atomicAdd(d_IntersectPerVertexPair+(v.id()-startRow)*NV+u.id(), count);
-		}
-        //atomicAdd(d_triPerVertex+v.id(), count);
+
+        if(count!=0){
+            if (vSrc == false){ // might need to reorder if and else clauses
+                atomicAdd(d_IntersectPerVertexPair+(u.id()-startRow)*NV+v.id(), count);
+            }else{
+                atomicAdd(d_IntersectPerVertexPair+(v.id()-startRow)*NV+u.id(), count);
+            }    
+        }
     }
 };
 
