@@ -54,7 +54,6 @@ add_executable(triangle2    test/TriangleTest2.cu)
 add_executable(clus-coeff   test/ClusCoeffTest.cu)
 add_executable(pr           test/PageRankTest.cu)
 
-
 target_link_libraries(dummy         hornetAlg)
 target_link_libraries(bfs2          hornetAlg)
 target_link_libraries(bc            hornetAlg)
