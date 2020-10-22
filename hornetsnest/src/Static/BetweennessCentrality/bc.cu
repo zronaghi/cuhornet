@@ -58,9 +58,11 @@ BCCentrality::BCCentrality(HornetGraph& hornet) :
     host::allocate(hd_BCData().depth_indices, hornet.nV());
     pool.allocate(&hd_BCData().d, hornet.nV());
 
+
     pool.allocate(&hd_BCData().sigma, hornet.nV());
     pool.allocate(&hd_BCData().delta, hornet.nV());
     pool.allocate(&hd_BCData().bc, hornet.nV());
+    pool.allocate(&hd_BCData().depArray, hornet.nV());
     hd_BCData().queue.initialize(hornet);
 
     reset();
@@ -98,11 +100,8 @@ void BCCentrality::run() {
     // Regular BFS
     hd_BCData().depth_indices[0]=1;
 
-    vid_t* depArray;
-    pool.allocate(&depArray, hornet.nV());
 
-
-    cudaMemcpy(depArray,hd_BCData().queue.device_input_ptr(),sizeof(vid_t)*hd_BCData().queue.size(),cudaMemcpyDeviceToDevice);
+    cudaMemcpy(hd_BCData().depArray,hd_BCData().queue.device_input_ptr(),sizeof(vid_t)*hd_BCData().queue.size(),cudaMemcpyDeviceToDevice);
 
     while (hd_BCData().queue.size() > 0) {
 
@@ -110,7 +109,7 @@ void BCCentrality::run() {
             length_t prevLength = hd_BCData().depth_indices[hd_BCData().currLevel] - 
                                   hd_BCData().depth_indices[hd_BCData().currLevel-1];
 
-            cudaMemcpy(depArray+hd_BCData().depth_indices[hd_BCData().currLevel-1],
+            cudaMemcpy(hd_BCData().depArray+hd_BCData().depth_indices[hd_BCData().currLevel-1],
                        hd_BCData().queue.device_input_ptr(),
                        sizeof(vid_t)*(prevLength), cudaMemcpyDeviceToDevice);
         }
@@ -132,13 +131,13 @@ void BCCentrality::run() {
     while (hd_BCData().currLevel>0) {
         length_t prevLength = hd_BCData().depth_indices[hd_BCData().currLevel+1] - 
                               hd_BCData().depth_indices[hd_BCData().currLevel];
-        forAllEdges(hornet, depArray+hd_BCData().depth_indices[hd_BCData().currLevel] ,prevLength, 
+        forAllEdges(hornet, hd_BCData().depArray+hd_BCData().depth_indices[hd_BCData().currLevel] ,prevLength, 
                     BC_DepAccumulation { hd_BCData }, load_balancing);
         hd_BCData().currLevel--;
     }
 
     if(deepest>0)
-        forAllVertices(hornet, depArray, hd_BCData().depth_indices[deepest],IncrementBCNew { hd_BCData });
+        forAllVertices(hornet, hd_BCData().depArray, hd_BCData().depth_indices[deepest],IncrementBCNew { hd_BCData });
 
 }
 
