@@ -67,7 +67,7 @@ public:
     void release()  override;
     bool validate() override;
 
-    void runAlg(int alg=0);
+    void runAlg();
 
     void set_parameters(vid_t source,int load_balancing=0);
 
@@ -76,7 +76,6 @@ public:
 private:
     BufferPool pool;
     TwoLevelQueue<vid_t>        queue;
-    load_balancing::BinarySearch load_balancing;
     load_balancing::LogarthimRadixBinning32 lrb_lb;
     int lb_mechansim;
 
@@ -124,7 +123,6 @@ template <typename HornetGraph>
 BFSTOPDOWN2::BfsTopDown2(HornetGraph& hornet) :
                                  StaticAlgorithm<HornetGraph>(hornet),
                                  queue(hornet, 5),
-                                 load_balancing(hornet),
                                  lrb_lb(hornet) {
     pool.allocate(&d_distances, hornet.nV());
     reset();
@@ -159,17 +157,10 @@ void BFSTOPDOWN2::run() {
     printf("bfs_source = %d\n",bfs_source);
     while (queue.size() > 0) {
  
-        if(lb_mechansim==0){
-            forAllEdges(
-                StaticAlgorithm<HornetGraph>::hornet, queue,
-                        BFSOperatorAtomic { current_level, d_distances, queue },
-                        lrb_lb);
-        }else{
-            forAllEdges(
-                StaticAlgorithm<HornetGraph>::hornet, queue,
-                        BFSOperatorAtomic { current_level, d_distances, queue },
-                        load_balancing);
-        }
+        forAllEdges(
+            StaticAlgorithm<HornetGraph>::hornet, queue,
+                    BFSOperatorAtomic { current_level, d_distances, queue },
+                    lrb_lb);
         queue.swap();
         current_level++;
     }
