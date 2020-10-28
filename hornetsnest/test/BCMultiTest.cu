@@ -30,10 +30,12 @@ using namespace graph::parsing_prop;
 #include <thrust/system/cuda/execution_policy.h>
 #include <thrust/iterator/counting_iterator.h>
 
+#include <BufferPool.cuh>
+
 using namespace timer;
 using namespace hornets_nest;
 
-void testSingle(graph::GraphStd<vid_t, eoff_t> &graph,int numRoots,bc_t *mgpuGlobalBC){
+void testSingle(graph::GraphStd<vid_t, eoff_t> &graph,int numRoots,bc_t *mgpuGlobalBC, BufferPool& pool){
 
     Timer<DEVICE> TM;
 
@@ -60,11 +62,14 @@ void testSingle(graph::GraphStd<vid_t, eoff_t> &graph,int numRoots,bc_t *mgpuGlo
 
     bc_t *sgpuGlobalBC,*diff;
 
-    gpu::allocate(sgpuGlobalBC, graph.nV());
+
+    pool.allocate(&sgpuGlobalBC, hornet_graph.nV());
+    // gpu::allocate(sgpuGlobalBC, graph.nV());
     cudaMemset(sgpuGlobalBC,0, sizeof(bc_t)*graph.nV());
     cudaMemcpy(sgpuGlobalBC,abc.getBCScores(),sizeof(bc_t)*graph.nV(), cudaMemcpyDeviceToDevice);
 
-    gpu::allocate(diff, graph.nV());
+    pool.allocate(&diff, hornet_graph.nV());
+    // gpu::allocate(diff, graph.nV());
     cudaMemset(diff,0, sizeof(bc_t)*graph.nV());
 
     thrust::transform(thrust::device,mgpuGlobalBC, mgpuGlobalBC+graph.nV(), sgpuGlobalBC, diff, thrust::minus<bc_t>());
@@ -77,7 +82,8 @@ void testSingle(graph::GraphStd<vid_t, eoff_t> &graph,int numRoots,bc_t *mgpuGlo
 
 
     bc_t *deltaDiff;
-    gpu::allocate(deltaDiff, graph.nV());
+    pool.allocate(&deltaDiff, hornet_graph.nV());
+    // gpu::allocate(deltaDiff, graph.nV());
 
     thrust::transform(thrust::device,mgpuGlobalBC, mgpuGlobalBC+graph.nV(), sgpuGlobalBC, deltaDiff, thrust::minus<bc_t>());
     bc_t sumSquareDelta = thrust::reduce(thrust::device,  deltaDiff, deltaDiff+graph.nV(),0.0);
@@ -98,16 +104,14 @@ void testSingle(graph::GraphStd<vid_t, eoff_t> &graph,int numRoots,bc_t *mgpuGlo
 
 
 
-    gpu::free(cubsum);
+    // gpu::free(cubsum);
 
     cout << "Total THRUSTsum square diff of delta : " << sumSquareDelta << endl;
     cout << "Total CUBsum square diff of delta : " << h_cubsum << endl;
 
-    // gpu::free(sigmaDiff);
-    // gpu::free(deltaDiff);
-       gpu::free(diff);
+    //    gpu::free(diff);
 
-    gpu::free(sgpuGlobalBC);
+    // gpu::free(sgpuGlobalBC);
   
     delete[] roots;
 }
@@ -115,6 +119,7 @@ void testSingle(graph::GraphStd<vid_t, eoff_t> &graph,int numRoots,bc_t *mgpuGlo
 
 int main(int argc, char* argv[]) {
 
+    BufferPool pool;
 
     // GraphStd<vid_t, eoff_t> graph(UNDIRECTED);
     graph::GraphStd<vid_t, eoff_t> graph;
@@ -140,12 +145,16 @@ int main(int argc, char* argv[]) {
     cudaSetDevice(0);
 
     bc_t *mgpuGlobalBC,*temp;
-    gpu::allocate(mgpuGlobalBC, graph.nV());
-    gpu::allocate(temp, graph.nV());
+
+    pool.allocate(&mgpuGlobalBC, graph.nV());
+    pool.allocate(&temp, graph.nV());
+    
+    // gpu::allocate(mgpuGlobalBC, graph.nV());
+    // gpu::allocate(temp, graph.nV());
 
     cudaMemset(mgpuGlobalBC,0, sizeof(bc_t)*graph.nV());
 
-      int original_number_threads = 0;
+    int original_number_threads = 0;
     #pragma omp parallel
     {
         if (omp_get_thread_num() == 0)
@@ -216,15 +225,20 @@ int main(int argc, char* argv[]) {
     TM.print("MultiGPU Time");
 
 
-    gpu::free(temp);
+    // gpu::free(temp);
 
     bc_t sumM = thrust::reduce(thrust::device, mgpuGlobalBC,mgpuGlobalBC+graph.nV(),0.0);
 
     cout << "Total BC scores (multi )   : " << sumM << endl;
 
     if(testSingleFlag){
-        testSingle(graph,numRoots, mgpuGlobalBC);
+        testSingle(graph,numRoots, mgpuGlobalBC,pool);
     }
 
-    gpu::free(mgpuGlobalBC);
+    #pragma omp parallel
+    {
+        omp_set_num_threads(original_number_threads);
+    }
+
+    // gpu::free(mgpuGlobalBC);
 }
