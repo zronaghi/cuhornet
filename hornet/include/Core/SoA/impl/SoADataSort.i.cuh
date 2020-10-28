@@ -298,8 +298,12 @@ cub_segmented_sort(CSoAPtr<EdgeTypes...> &soa, degree_t capacity, degree_t segme
   T * out_edges = soa.template get<0>();
 
   degree_t offset_count = capacity/segment_length;
-  rmm::device_vector<degree_t> offsets(offset_count + 1);
-  thrust::transform(rmm::exec_policy(stream)->on(stream),
+  if(offset_count==0)
+    return;
+    rmm::device_vector<degree_t> offsets(offset_count + 1);
+    thrust::sequence(rmm::exec_policy(stream)->on(stream), offsets.data(), offsets.data()+offset_count+1);
+    // rmm::device_vector<degree_t> offsets2(offset_count + 1);
+    thrust::transform(rmm::exec_policy(stream)->on(stream),
       offsets.begin(), offsets.end(),
       thrust::make_constant_iterator(segment_length),
       offsets.begin(),
