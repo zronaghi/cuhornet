@@ -4,6 +4,7 @@
 
 #include "HornetAlg.hpp"
 #include <Graph/GraphStd.hpp>
+#include <BufferPool.cuh>
 
 
 
@@ -12,6 +13,8 @@
 #include <Graph/GraphStd.hpp>
 #include <Util/CommandLineParam.hpp>
 #include <cuda_profiler_api.h> //--profile-from-start off
+
+
 using namespace timer;
 
 
@@ -67,6 +70,8 @@ struct invBFSData {
 
 }
 #include "lrb.cuh"
+
+
 namespace hornets_nest {
 
 template <typename HornetGraph>
@@ -89,6 +94,8 @@ public:
     void sortHornets(HornetGraph& hornet_inv);
     void set_parameters(vid_t source);
 private:
+    BufferPool pool;
+
     TwoLevelQueue<vid_t>        queue;
     TwoLevelQueue<vid_t>        queue_inf;
     load_balancing::BinarySearch load_balancing;
@@ -252,23 +259,23 @@ ReverseDeleteBFS::ReverseDeleteBFS(HornetGraph& hornet, HornetGraph& hornet_inv,
                                  load_balancing(hornet)
                                  // lrb_lb(hornet)
                                  {
-    gpu::allocate(d_found, hornet.nV());
+    pool.allocate(&d_found, hornet.nV());
 
     auto edges = hornet.nE();
-    gpu::allocate(d_src, edges);
-    gpu::allocate(d_dest, edges);
-    gpu::allocate(d_batchSize, 1);
+    pool.allocate(&d_src, edges);
+    pool.allocate(&d_dest, edges);
+    pool.allocate(&d_batchSize, 1);
 
 
-    gpu::allocate(hd_bfsData().d_lrbRelabled, hornet.nV());
-    gpu::allocate(hd_bfsData().d_bins, 33);
-    gpu::allocate(hd_bfsData().d_binsPrefix, 33);
+    pool.allocate(&hd_bfsData().d_lrbRelabled, hornet.nV());
+    pool.allocate(&hd_bfsData().d_bins, 33);
+    pool.allocate(&hd_bfsData().d_binsPrefix, 33);
 
-    gpu::allocate(hd_bfsData().d_offset, hornet.nV()+1);
-    gpu::allocate(hd_bfsData().d_offsetInv, hornet.nV()+1);
+    pool.allocate(&hd_bfsData().d_offset, hornet.nV()+1);
+    pool.allocate(&hd_bfsData().d_offsetInv, hornet.nV()+1);
 
-    gpu::allocate(hd_bfsData().d_deletionSet, edges);
-    gpu::allocate(hd_bfsData().d_deletionIndexInv, edges);
+    pool.allocate(&hd_bfsData().d_deletionSet, edges);
+    pool.allocate(&hd_bfsData().d_deletionIndexInv, edges);
 
     cudaMemcpy(hd_bfsData().d_offset,h_offset,sizeof(eoff_t)*(size_t)(hornet.nV()+1), cudaMemcpyHostToDevice);
     cudaMemcpy(hd_bfsData().d_offsetInv,h_offsetInv,sizeof(eoff_t)*(size_t)(hornet.nV()+1), cudaMemcpyHostToDevice);
@@ -278,39 +285,39 @@ ReverseDeleteBFS::ReverseDeleteBFS(HornetGraph& hornet, HornetGraph& hornet_inv,
 
 template <typename HornetGraph>
 void ReverseDeleteBFS::release() {
-    if(d_found != nullptr){
-        gpu::free(d_found);d_found = nullptr;
-    }
-    if(d_src != nullptr){
-        gpu::free(d_src);d_src = nullptr;
-    }
-    if(d_dest != nullptr){
-        gpu::free(d_dest);d_dest = nullptr;
-    }
-    if(d_batchSize != nullptr){
-        gpu::free(d_batchSize);d_batchSize = nullptr;
-    }
-    if(hd_bfsData().d_lrbRelabled != nullptr){
-        gpu::free(hd_bfsData().d_lrbRelabled);hd_bfsData().d_lrbRelabled = nullptr;
-    }
-    if(hd_bfsData().d_bins != nullptr){
-        gpu::free(hd_bfsData().d_bins);hd_bfsData().d_bins = nullptr;
-    }
-    if(hd_bfsData().d_binsPrefix != nullptr){
-        gpu::free(hd_bfsData().d_binsPrefix);hd_bfsData().d_binsPrefix = nullptr;
-    }
-    if(hd_bfsData().d_offset != nullptr){
-        gpu::free(hd_bfsData().d_offset);hd_bfsData().d_offset = nullptr;
-    }
-    if(hd_bfsData().d_offsetInv != nullptr){
-        gpu::free(hd_bfsData().d_offsetInv);hd_bfsData().d_offsetInv = nullptr;
-    }
-    if(hd_bfsData().d_deletionSet != nullptr){
-        gpu::free(hd_bfsData().d_deletionSet);hd_bfsData().d_deletionSet = nullptr;
-    }
-    if(hd_bfsData().d_deletionIndexInv != nullptr){
-        gpu::free(hd_bfsData().d_deletionIndexInv);hd_bfsData().d_deletionIndexInv = nullptr;
-    }
+    // if(d_found != nullptr){
+    //     gpu::free(d_found);d_found = nullptr;
+    // }
+    // if(d_src != nullptr){
+    //     gpu::free(d_src);d_src = nullptr;
+    // }
+    // if(d_dest != nullptr){
+    //     gpu::free(d_dest);d_dest = nullptr;
+    // }
+    // if(d_batchSize != nullptr){
+    //     gpu::free(d_batchSize);d_batchSize = nullptr;
+    // }
+    // // if(hd_bfsData().d_lrbRelabled != nullptr){
+    //     gpu::free(hd_bfsData().d_lrbRelabled);hd_bfsData().d_lrbRelabled = nullptr;
+    // }
+    // if(hd_bfsData().d_bins != nullptr){
+    //     gpu::free(hd_bfsData().d_bins);hd_bfsData().d_bins = nullptr;
+    // }
+    // if(hd_bfsData().d_binsPrefix != nullptr){
+    //     gpu::free(hd_bfsData().d_binsPrefix);hd_bfsData().d_binsPrefix = nullptr;
+    // }
+    // if(hd_bfsData().d_offset != nullptr){
+    //     gpu::free(hd_bfsData().d_offset);hd_bfsData().d_offset = nullptr;
+    // }
+    // if(hd_bfsData().d_offsetInv != nullptr){
+    //     gpu::free(hd_bfsData().d_offsetInv);hd_bfsData().d_offsetInv = nullptr;
+    // }
+    // if(hd_bfsData().d_deletionSet != nullptr){
+    //     gpu::free(hd_bfsData().d_deletionSet);hd_bfsData().d_deletionSet = nullptr;
+    // }
+    // if(hd_bfsData().d_deletionIndexInv != nullptr){
+    //     gpu::free(hd_bfsData().d_deletionIndexInv);hd_bfsData().d_deletionIndexInv = nullptr;
+    // }
 }
 
 template <typename HornetGraph>
@@ -504,8 +511,8 @@ void ReverseDeleteBFS::runNoDelete(HornetGraph& hornet_inv, int flagAlg,int time
 
 
     int level=1;
-    float section = 0;
-    int total_counter = 0;
+    // float section = 0;
+    // int total_counter = 0;
     while (queue.size() > 0) {
 
         // if(timeSection&1)

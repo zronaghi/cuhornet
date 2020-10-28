@@ -8,11 +8,15 @@
 #include <Util/CommandLineParam.hpp>
 #include <cuda_profiler_api.h> //--profile-from-start off
 
+#include <BufferPool.cuh>
+
 int exec(int argc, char* argv[]) {
     using namespace timer;
     using namespace hornets_nest;
     using vid_t = int;
     using dst_t = int;
+
+    BufferPool pool;
 
     using namespace graph::structure_prop;
     using namespace graph::parsing_prop;
@@ -20,9 +24,6 @@ int exec(int argc, char* argv[]) {
     // graph::GraphStd<vid_t, eoff_t> graph;
     graph::GraphStd<vid_t, eoff_t> graph(DIRECTED | ENABLE_INGOING);
     CommandLineParam cmd(graph, argc, argv,false);
-
-
-
 
     HornetInit hornet_init(graph.nV(), graph.nE(), graph.csr_out_offsets(),
                            graph.csr_out_edges());
@@ -128,13 +129,13 @@ int exec(int argc, char* argv[]) {
 
     int N=graph.nE();
     vid_t* d_temp;
-    gpu::allocate(d_temp,N);
+    pool.allocate(&d_temp,N);
     TM.start();
     for (int i=0; i<5000; i++){
         cudaMemset(d_temp,0,sizeof(vid_t)*N);
     }
     TM.stop();
-    gpu::free(d_temp);
+    // gpu::free(d_temp);
 
     // TM.print("Reverse BFS");
 
@@ -143,13 +144,13 @@ int exec(int argc, char* argv[]) {
 
 int main(int argc, char* argv[]) {
     int ret = 0;
-    hornets_nest::gpu::initializeRMMPoolAllocation();//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
+    // hornets_nest::gpu::initializeRMMPoolAllocation();//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
     {//scoping technique to make sure that hornets_nest::gpu::finalizeRMMPoolAllocation is called after freeing all RMM allocations.
 
     ret = exec(argc, argv);
 
     }//scoping technique to make sure that hornets_nest::gpu::finalizeRMMPoolAllocation is called after freeing all RMM allocations.
-    hornets_nest::gpu::finalizeRMMPoolAllocation();
+    // hornets_nest::gpu::finalizeRMMPoolAllocation();
 
     return ret;
 }
