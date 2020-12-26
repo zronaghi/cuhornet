@@ -1,5 +1,6 @@
 #pragma once
 
+
 #include "HornetAlg.hpp"
 
 
@@ -68,6 +69,29 @@ private:
     float workFactor;
     bool sanityCheck;
     int numGPUs;
+};
+
+
+struct arrayExtraInfo{
+public:
+    arrayExtraInfo(degree_t size){
+        hornets_nest::gpu::allocate(d_First, size);
+        hornets_nest::gpu::allocate(d_Last, size);
+        hornets_nest::gpu::allocate(d_Size, size);
+        hornets_nest::gpu::allocate(d_Log, size);
+    }
+
+    ~arrayExtraInfo(){
+        hornets_nest::gpu::free(d_First);
+        hornets_nest::gpu::free(d_Last);
+        hornets_nest::gpu::free(d_Size);
+        hornets_nest::gpu::free(d_Log);
+    }
+
+    vid_t *d_First;
+    vid_t *d_Last; 
+    degree_t *d_Size;
+    unsigned int *d_Log; 
 };
 
 //==============================================================================
