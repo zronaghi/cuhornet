@@ -162,9 +162,12 @@ void BfsBottomUp2::run(HornetGraph& hornet_in) {
        int nv = hornet.nV();
        int bu_flag = 0;
 
+       int elements = 0;
+
     while (queue.size() > 0) {
 
         qs = queue.size();
+        elements +=qs;
         td = (float)nv/(float)qs > 40 ? 1 : 0;
 
         //top down
@@ -200,6 +203,7 @@ void BfsBottomUp2::run(HornetGraph& hornet_in) {
         }
 
     }
+    std::cout << "Number of elements is : " << elements << std::endl;
 
 }
 

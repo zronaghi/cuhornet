@@ -318,4 +318,40 @@ __global__ void inverseIndexDelete(
 }
 
 
+
+
+// struct inverseIndexDeleteLRB {
+
+//     // const vid_t* currentFrontier,
+//     // HornetDevice inverseHornet , 
+//     HornetDevice originalHornet;
+//     HostDeviceVar<invBFSData> bfs;
+
+
+
+//     OPERATOR(Vertex& vertex) {
+
+//         vid_t* neighPtr = vertex.neighbor_ptr();
+//         int length      = vertex.degree();
+    
+//         for (int i=0; i<length; i++) {
+//             vid_t dest = neighPtr[i];
+//             // vid_t index = ivSrc.edge(i). template field<0>() ;
+    
+//             vid_t index = bfs().d_deletionIndexInv[posSrcInv+i];
+//             auto posDestOrig = bfs().d_offset[dest];
+//             bfs().d_deletionSet[posDestOrig+index]=1;
+    
+    
+//             // originalHornet.vertex(dest).edge(index).template field<0> () = 1;
+//         }
+    
+
+//     }
+// };
+
+// }
+
+
+
 } // namespace hornets_nest

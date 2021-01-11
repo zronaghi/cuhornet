@@ -64,7 +64,8 @@ public:
 private:
     TwoLevelQueue<vid_t>        queue;
     TwoLevelQueue<vid_t>        queue_inf;
-    load_balancing::BinarySearch load_balancing;
+    // load_balancing::BinarySearch load_balancing;
+    load_balancing::LogarthimRadixBinning32 load_balancing;
 
     dist_t* d_distances   { nullptr };
     vid_t   bfs_source    { 0 };

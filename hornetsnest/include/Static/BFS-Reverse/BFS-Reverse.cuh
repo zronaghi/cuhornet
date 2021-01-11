@@ -98,7 +98,7 @@ private:
 
     TwoLevelQueue<vid_t>        queue;
     TwoLevelQueue<vid_t>        queue_inf;
-    load_balancing::BinarySearch load_balancing;
+    load_balancing::LogarthimRadixBinning32 load_balancing;
 
     // load_balancing::LogarthimRadixBinning32 lrb_lb;
 
@@ -508,11 +508,11 @@ void ReverseDeleteBFS::runNoDelete(HornetGraph& hornet_inv, int flagAlg,int time
     cudaStream_t streams[STREAMS];
     for(int i=0;i<STREAMS; i++)
       cudaStreamCreate ( &(streams[i]));
-
+    
 
     int level=1;
     // float section = 0;
-    // int total_counter = 0;
+    int total_counter = 0;
     while (queue.size() > 0) {
 
         // if(timeSection&1)
@@ -520,15 +520,15 @@ void ReverseDeleteBFS::runNoDelete(HornetGraph& hornet_inv, int flagAlg,int time
         gpu::memsetZero(d_batchSize);  //reset source distance
 
         if(0){
-            const int blockSize = 512;
-            int numberBlocks = (queue.size())/blockSize + ((queue.size()%blockSize)?1:0);
+            // const int blockSize = 512;
+            // int numberBlocks = (queue.size())/blockSize + ((queue.size()%blockSize)?1:0);
 
-            inverseIndexDelete<<<numberBlocks,blockSize>>>(
-                queue.device_input_ptr(),
-                hornet_inv.device(), 
-                StaticAlgorithm<HornetGraph>::hornet.device(),
-                hd_bfsData,
-                queue.size(),0);   
+            // inverseIndexDelete<<<numberBlocks,blockSize>>>(
+            //     queue.device_input_ptr(),
+            //     hornet_inv.device(), 
+            //     StaticAlgorithm<HornetGraph>::hornet.device(),
+            //     hd_bfsData,
+            //     queue.size(),0);   
         }else if(true){
 
             int32_t elements = queue.size();
@@ -595,11 +595,16 @@ void ReverseDeleteBFS::runNoDelete(HornetGraph& hornet_inv, int flagAlg,int time
         //     TM.start();
 
         if(flagAlg){
+            int32_t elements = queue.size();
+            total_counter+=elements;
+            printf("*");
+
             forAllEdges(StaticAlgorithm<HornetGraph>::hornet, queue,
                     findNewOnlyUndeleted { d_found, queue},load_balancing);
         }else{
 
             int32_t elements = queue.size();
+            total_counter+=elements;
 
             cudaMemset(hd_bfsData().d_bins,0,33*sizeof(vid_t));
 
@@ -678,7 +683,7 @@ void ReverseDeleteBFS::runNoDelete(HornetGraph& hornet_inv, int flagAlg,int time
 
     // printf("Traversal time %f\n",traversal);
     // printf("Batch time     %f\n",batchtime);
-    // printf("Number of deleted edges %d\n",total_counter);
+    printf("Number of deleted edges %d\n",total_counter);
 
     // TM.stop();
     // cudaProfilerStop();
@@ -690,7 +695,7 @@ void ReverseDeleteBFS::runNoDelete(HornetGraph& hornet_inv, int flagAlg,int time
     cudaEventDestroy(syncher);
 
 
-    // printf("Number of levels is %d\n", level);
+    printf("Number of levels is %d\n", level);
 }
 
 

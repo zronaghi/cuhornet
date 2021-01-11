@@ -155,8 +155,10 @@ void BFSTOPDOWN2::set_parameters(vid_t source,int load_balancing) {
 template <typename HornetGraph>
 void BFSTOPDOWN2::run() {
     printf("bfs_source = %d\n",bfs_source);
+    int total = 0;
     while (queue.size() > 0) {
  
+        total += queue.size();
         forAllEdges(
             StaticAlgorithm<HornetGraph>::hornet, queue,
                     BFSOperatorAtomic { current_level, d_distances, queue },
@@ -164,7 +166,8 @@ void BFSTOPDOWN2::run() {
         queue.swap();
         current_level++;
     }
-    // std::cout << "Number of levels is : " << current_level << std::endl;
+    std::cout << "Number of levels is : " << current_level << std::endl;
+    std::cout << "Number of elements is : " << total << std::endl;
 }
 
 template <typename HornetGraph>
