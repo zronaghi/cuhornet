@@ -41,6 +41,8 @@
 #ifndef HORNET_ALG_HPP
 #define HORNET_ALG_HPP
 
+#define THRUST_IGNORE_CUB_VERSION_CHECK
+
 #include <HornetAlg.cuh>
 #include <Operator++.cuh>
 #include "Queue/TwoLevelQueue.cuh"
