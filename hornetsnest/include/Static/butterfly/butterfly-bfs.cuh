@@ -32,7 +32,7 @@
 #pragma once
 
 #include "HornetAlg.hpp"
-
+#include <BufferPool.cuh>
 
 namespace hornets_nest {
 
@@ -104,7 +104,9 @@ public:
     bool validate() override;
 
 
-// private:
+private:
+    BufferPool pool;
+public:
     load_balancing::BinarySearch load_balancing;
     load_balancing::LogarthimRadixBinning32 lr_lrb;
 

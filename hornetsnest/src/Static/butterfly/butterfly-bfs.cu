@@ -63,17 +63,13 @@ butterfly::butterfly(HornetGraph& hornet, int fanout_) :
 
     hd_bfsData().currLevel=0;
 
-    gpu::allocate(hd_bfsData().d_buffer, fanout*hornet.nV());
-    gpu::allocate(hd_bfsData().d_bufferSorted, fanout*hornet.nV());
-
-    gpu::allocate(cubBuffer, 2*fanout*hornet.nV());
-
-
-    gpu::allocate(hd_bfsData().d_dist, hornet.nV());
-
-    gpu::allocate(hd_bfsData().d_lrbRelabled, hornet.nV());
-    gpu::allocate(hd_bfsData().d_bins, 33);
-    gpu::allocate(hd_bfsData().d_binsPrefix, 33);
+    pool.allocate(&hd_bfsData().d_buffer,           fanout*hornet.nV());
+    pool.allocate(&hd_bfsData().d_bufferSorted,     fanout*hornet.nV());
+    pool.allocate(&cubBuffer,                       2*fanout*hornet.nV());
+    pool.allocate(&hd_bfsData().d_dist,             hornet.nV());
+    pool.allocate(&hd_bfsData().d_lrbRelabled,      hornet.nV());
+    pool.allocate(&hd_bfsData().d_bins,             33);
+    pool.allocate(&hd_bfsData().d_binsPrefix,       33);
 
     hd_bfsData().queueLocal.initialize((size_t)hornet.nV());
     hd_bfsData().queueRemote.initialize((size_t)hornet.nV());
@@ -124,15 +120,14 @@ void butterfly::reset() {
 }
 
 void butterfly::release(){
-    gpu::free(hd_bfsData().d_buffer);
-    gpu::free(hd_bfsData().d_dist);
-    gpu::free(hd_bfsData().d_lrbRelabled);
-    gpu::free(hd_bfsData().d_bins);
-    gpu::free(hd_bfsData().d_binsPrefix);
+    // gpu::free(hd_bfsData().d_buffer);
+    // gpu::free(hd_bfsData().d_dist);
+    // gpu::free(hd_bfsData().d_lrbRelabled);
+    // gpu::free(hd_bfsData().d_bins);
+    // gpu::free(hd_bfsData().d_binsPrefix);
 
-
-    gpu::free(hd_bfsData().d_bufferSorted);
-    gpu::free(cubBuffer);
+    // gpu::free(hd_bfsData().d_bufferSorted);
+    // gpu::free(cubBuffer);
 
 
     // gpu::free(hd_bfsData().queueRemote);

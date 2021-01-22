@@ -221,7 +221,7 @@ int main(int argc, char* argv[]) {
         // fflush(stdout);
 
     omp_set_num_threads(maxGPUs);
-    hornets_nest::gpu::initializeRMMPoolAllocation(0,maxGPUs);//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
+    // hornets_nest::gpu::initializeRMMPoolAllocation(0,maxGPUs);//update initPoolSize if you know your memory requirement and memory availability in your system, if initial pool size is set to 0 (default value), RMM currently assigns half the device memory.
 
 
     cudaSetDevice(0);
@@ -306,6 +306,7 @@ int main(int argc, char* argv[]) {
             cudaSetDevice(thread_id);
 
             if(0){
+/*                
                 h_SortedLengths[thread_id] = h_SortedOffsets[thread_id+1]-h_SortedOffsets[thread_id]; 
 
                 gpu::free(d_unSortedSrc[thread_id]);  d_unSortedSrc[thread_id] = nullptr;
@@ -399,6 +400,7 @@ int main(int argc, char* argv[]) {
                 delete[] h_EdgesDst;
                 // printf("HOST MEMORY FREE\n");fflush(stdout);
             // stam+=scanf("%d\n",&stam)
+*/
             }
             else{
 
@@ -686,7 +688,7 @@ int main(int argc, char* argv[]) {
         delete[] h_cooDst;
 
 
-    hornets_nest::gpu::finalizeRMMPoolAllocation(maxGPUs);
+    // hornets_nest::gpu::finalizeRMMPoolAllocation(maxGPUs);
 
     return 0;
 
