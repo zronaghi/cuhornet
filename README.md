@@ -27,6 +27,10 @@ The document is organized as follows:
 
 ### Quick start ###
 
+As a first step, you will need to install build a CONDA environment for RAPIDS. 
+You can get started here: [RAPIDS](https://rapids.ai/start.html). Do not forget to activate the conda enviornment before building Hornet and HornetsNest
+
+
 The following basic steps are required to build and execute Hornet:
 ```bash
 git clone --recursive https://github.com/hornet-gt/hornet
@@ -97,29 +101,6 @@ The code documentation is located in the `docs` directory (*doxygen* html format
 If you find any bugs please report them by using the repository (github **issues** panel).
 We are also ready to engage in improving and extending the framework if you request new features.
 
-## Hornet Algorithms ##
-
-|           Algorithm                 |    Static     | Dynamic  |
-| :-----------------------------------|:-------------:|:--------:|
-| (BFS) Breadth-first Search          |     yes       | on-going |
-| (SSSP) Single-Source Shortest Path  |     yes       | on-going |
-| (CC) Connected Components           |     yes       | on-going |
-| (SCC) Strongly Connected Components |    to-do      |  to-do   |
-| (MST) Minimum Spanning Tree         |   on-going    |  to-do   |
-| (BC) Betweeness Centrality          |     yes       | on-going |
-| (PG) Page Rank                      |     yes       |   yes    |
-| (TC) Triangle Counting              |     yes       | on-going |
-| (KC) Katz Centrality                |     yes       |   yes    |
-| (MIS) Maximal Independent Set       |   on-going    |  to-do   |
-| (MF) Maximum Flow                   |    to-do      |  to-do   |
-| (CC) Clustering Coeffient           |     yes       |  to-do   |
-| (ST) St-Connectivity                |    to-do      |  to-do   |
-| (TC) Transitive Closure             |    to-do      |  to-do   |
-| Community Detection                 |    on-going   |  to-do   |
-| Temporal Motif Finding              |   on-going    |  to-do   |
-| Sparse Vector-Matrix Multiplication |     yes       |  to-do   |
-| Jaccard indices                     |   on-going    |  to-do   |
-| Energy/Parity Game                  |   on-going    |  to-do   |
 
 ## Publications ##
 
@@ -153,8 +134,6 @@ We are also ready to engage in improving and extending the framework if you requ
 
 ## Hornet Developers ##
 
-* `Federico Busato`, Ph.D. Student, University of Verona (Italy)
-* `Oded Green`, Researcher, Georgia Institute of Technology
 * `Federico Busato`, Ph.D. Student, University of Verona (Italy)
 * `Oded Green`, Researcher, Georgia Institute of Technology
 * `James Fox`, Ph.D. Student, Georgia Institute of Technology : *Maximal Independent Set*, *Temporal Motif Finding*
