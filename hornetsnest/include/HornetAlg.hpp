@@ -41,12 +41,16 @@
 #ifndef HORNET_ALG_HPP
 #define HORNET_ALG_HPP
 
+#define THRUST_IGNORE_CUB_VERSION_CHECK
+
 #include <HornetAlg.cuh>
 #include <Operator++.cuh>
 #include "Queue/TwoLevelQueue.cuh"
 #include "StandardAPI.hpp"
 #include "HostDeviceVar.cuh"
+#include "LoadBalancing/lrb_lb.cuh"
 #include "LoadBalancing/BinarySearch.cuh"
+#include "LoadBalancing/lrb_lb.cuh"
 
 
 //#include <BasicTypes.hpp>
